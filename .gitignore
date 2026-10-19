@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# .env.example 只放占位符，必须提交，否则别人不知道要配什么
+!.env.example
 
 # vercel
 .vercel
