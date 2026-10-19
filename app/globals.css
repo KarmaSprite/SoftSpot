@@ -1162,3 +1162,171 @@ textarea {
     font-size: 15px;
   }
 }
+
+/* ---------- 12. 调试面板 ---------- */
+
+/*
+   替代 Next.js 自带的英文按钮。固定在左下角，开发模式才有。
+   配色全部复用上面的变量，不新增颜色，改主题时这里自动跟着变。
+*/
+
+.debug-root {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.debug-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(16, 18, 24, 0.1);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.debug-btn:hover {
+  border-color: var(--faint);
+  color: var(--ink);
+}
+
+/* 按钮上的状态点：不点开也知道正不正常 */
+.debug-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--faint);
+  flex-shrink: 0;
+}
+
+.debug-dot-ok {
+  background: var(--good);
+}
+
+.debug-dot-warn {
+  background: var(--warn);
+}
+
+.debug-dot-error {
+  background: var(--danger);
+}
+
+.debug-panel {
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: 0 8px 28px rgba(16, 18, 24, 0.18);
+}
+
+.debug-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.debug-title span:last-child {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.debug-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: var(--fs-xs);
+}
+
+.debug-key {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.debug-val {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  word-break: break-all;
+}
+
+.debug-val-ok {
+  color: var(--good);
+}
+
+.debug-val-warn {
+  color: var(--warn);
+}
+
+.debug-warn {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: var(--radius-control);
+  background: var(--q-weak-bg);
+}
+
+.debug-warn-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--q-weak);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.debug-warn ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.debug-warn li {
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+}
+
+.debug-retry {
+  width: 100%;
+  margin-top: 12px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.debug-retry:hover:not(:disabled) {
+  border-color: var(--faint);
+  background: var(--surface);
+}
+
+.debug-retry:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
