@@ -7,7 +7,7 @@
  * 它刚说完"这个问题很关键"，再给个低分等于自我否定。
  *
  * 所以拆成两件事：
- *   模型只判断"危险等级"（high / medium / low）—— 这是语义判断，它擅长
+ *   模型只判断"危险等级"（fatal / high / medium / low / minor）—— 这是语义判断，它擅长
  *   代码负责把等级换算成分数 —— 这是算术，代码永远一样
  *
  * 这也是四象限那条规则的延伸：能让代码算的，就别让模型算。
@@ -21,28 +21,39 @@ import type { RiskLevel } from "./schema.ts";
    --------------------------------------------------------------- */
 
 /**
- * 三档对应的底分。
+ * 五档对应的底分。
  *
- * 为什么不是 100/66/33：
- * 那种写法看起来像"均匀分布"，但 100 分意味着"绝对答不上来"，
- * 是个断言。留一点余地更诚实 —— 而且界面上出现满分红条看着太凶。
+ * **为什么从三档改成五档** —— 这是真跑两份提纲撞出来的问题。
  *
- * 为什么三档之间拉开 25 分：
- * 差距太小（比如 80/75/70）就失去意义了，用户看不出排序。
- * 拉开之后，high 的问题一定排在 medium 前面，不会被纯代码的
- * 修正项（最多 +13）跨档反超。
+ * 三档时（85 / 60 / 35）模型几乎只用 high 和 medium，
+ * 一条主张的两个问题总是 [85, 60]，七条主张算出来的稳度全是同一个数，
+ * 四象限图的纵轴变成一条水平线，整张图只有横轴在动。
+ *
+ * 五档之后模型有地方表达"这条比那条更危险"，纵轴才动得起来。
+ *
+ * **为什么档位间距不均匀（20 / 15 / 15 / 10）**：
+ * 上面两档要拉得开，因为"会换题"和"会被追到底"是性质差别，
+ * 用户看报告时最先要区分的就是这两种。下面两档靠得近，
+ * 因为"较低"和"轻微"本来就没什么区别，分太开反而像在编。
+ *
+ * 最小值 20 而不是 0：没有任何问题真的"完全没风险"，
+ * 0 分出现在排序里会让人以为那条问题坏了。
  */
 export const LEVEL_BASE: Record<RiskLevel, number> = {
-  high: 85,
-  medium: 60,
+  fatal: 95,
+  high: 75,
+  medium: 55,
   low: 35,
+  minor: 20,
 };
 
-/** 三档在界面上的中文名。放在底分旁边，改档位时不会漏改文案。 */
+/** 五档在界面上的中文名。放在底分旁边，改档位时不会漏改文案。 */
 export const LEVEL_LABEL: Record<RiskLevel, string> = {
+  fatal: "致命",
   high: "高危",
   medium: "中等",
   low: "较低",
+  minor: "轻微",
 };
 
 /* ---------------------------------------------------------------
@@ -53,9 +64,12 @@ export const LEVEL_LABEL: Record<RiskLevel, string> = {
  * 修正项的意义：同一条主张，如果它本身"答得上来"分就低，
  * 说明作者对这个方向本来就没底，被问到会更危险。
  *
- * 但修正幅度必须小于档位间距（25 分），
- * 否则 medium 加满分会顶到 high 的头上，排序就乱了。
- * 这里所有修正加起来最多 13 分，安全。
+ * 修正幅度必须小于最小档位间距，否则低档加满会顶到上一档头上，排序就乱。
+ * 现在五档底分是 95 / 75 / 55 / 35 / 20，最小间距 15，
+ * 而所有修正加起来最多 13 —— 差 2 分，安全但很窄。
+ *
+ * 所以下面 computeRisk 里还加了一道 cap 兜底：
+ * 就算以后有人调大了修正值，也不会跨档。
  */
 export const PENALTY_LOW_DEFENSIBILITY = 8;
 export const PENALTY_HAS_WARNING = 5;
@@ -84,6 +98,12 @@ export type RiskResult = {
 };
 
 /**
+ * 档位从高到低的顺序，用来找"上一档的底分"。
+ * 写成数组而不是靠对象 key 顺序，因为对象 key 顺序不保证。
+ */
+const LEVEL_ORDER: RiskLevel[] = ["fatal", "high", "medium", "low", "minor"];
+
+/**
  * 把危险等级换算成 0-100 的分数。
  *
  * 返回 reason 是为了让分数可解释 —— 答辩被问"这个 92 怎么算的"，
@@ -106,9 +126,23 @@ export function computeRisk(level: RiskLevel, context: RiskContext): RiskResult 
     parts.push(`主张原文在提纲里对不上，加 ${PENALTY_HAS_WARNING}`);
   }
 
-  const clamped = Math.min(RISK_MAX, Math.max(RISK_MIN, Math.round(score)));
+  /*
+     关键一步：修正之后不许跨档。
+     两个修正加起来最多 13 分，而最小档位间距只有 10 分 ——
+     不拦的话 medium 加满（55+13=68）会顶到 high 的底分（75）以下但
+     超过 low 的上一档，排序就乱了。
+
+     具体做法：把分数夹在 [本档底分, 上一档底分 - 1] 之间。
+     fatal 是最高的档，上一档不存在，用 RISK_MAX 兜住。
+  */
+  const rank = LEVEL_ORDER.indexOf(level);
+  const upper = rank === 0 ? RISK_MAX + 1 : LEVEL_BASE[LEVEL_ORDER[rank - 1]];
+  const cap = upper - 1;
+
+  const clamped = Math.min(RISK_MAX, Math.max(RISK_MIN, Math.round(Math.min(score, cap))));
+
   if (clamped !== score) {
-    parts.push(`夹到 ${RISK_MIN}-${RISK_MAX} 之间，得 ${clamped}`);
+    parts.push(`夹到 ${RISK_MIN}-${cap} 之间，得 ${clamped}`);
   }
 
   return { score: clamped, reason: parts.join("；") };

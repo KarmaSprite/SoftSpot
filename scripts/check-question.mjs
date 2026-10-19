@@ -9,6 +9,7 @@
 import { generateQuestions, detectBoring } from "../lib/question.ts";
 import { buildQuestionMessages, QUESTION_SYSTEM_PROMPT } from "../lib/prompts.ts";
 import { computeRisk, LEVEL_BASE } from "../lib/risk.ts";
+import { defensibilityFromRisk } from "../lib/similarity.ts";
 
 let passed = 0;
 let failed = 0;
@@ -200,37 +201,43 @@ await (async () => {
 
 await (async () => {
   const r = await generateQuestions([C2], OUTLINE, fixed(GOOD));
-  if (!r.ok) return fail("level=high 换成 85 分", r.error);
-  // C2 的 defensibility=41 < 50，所以 +8 → 93
-  if (r.data[0].risk !== 93) return fail("level=high 换成 85 分", `期望 93（85+8），实际 ${r.data[0].risk}`);
-  pass("level=high 换成 85 分", "85 底分 + 8 没底修正 = 93");
+  if (!r.ok) return fail("level=high 换成 75 分", r.error);
+  // C2 的 defensibility=41 < 50，所以 +8 → 83
+  if (r.data[0].risk !== 83) return fail("level=high 换成 75 分", `期望 83（75+8），实际 ${r.data[0].risk}`);
+  pass("level=high 换成 75 分", "75 底分 + 8 没底修正 = 83");
 })();
 
 await (async () => {
   const r = await generateQuestions([C1], OUTLINE, fixed(GOOD));
   if (!r.ok) return fail("defensibility 够高时不加分", r.error);
-  // C1 的 defensibility=72 >= 50，所以只取底分 85
-  if (r.data[0].risk !== 85) return fail("defensibility 够高时不加分", `期望 85，实际 ${r.data[0].risk}`);
-  pass("defensibility 够高时不加分", "只有底分 85");
+  // C1 的 defensibility=72 >= 50，所以只取底分 75
+  if (r.data[0].risk !== 75) return fail("defensibility 够高时不加分", `期望 75，实际 ${r.data[0].risk}`);
+  pass("defensibility 够高时不加分", "只有底分 75");
 })();
 
 {
+  const fatal = computeRisk("fatal", { defensibility: 80, hasWarning: false });
   const high = computeRisk("high", { defensibility: 80, hasWarning: false });
   const medium = computeRisk("medium", { defensibility: 80, hasWarning: false });
   const low = computeRisk("low", { defensibility: 80, hasWarning: false });
-  if (!(high.score > medium.score && medium.score > low.score)) {
-    fail("三档之间的顺序不能乱", `${high.score} / ${medium.score} / ${low.score}`);
+  const minor = computeRisk("minor", { defensibility: 80, hasWarning: false });
+  const order = [fatal, high, medium, low, minor].map((r) => r.score);
+  const sorted = [...order].sort((a, b) => b - a);
+  if (order.join(",") !== sorted.join(",")) {
+    fail("五档之间的顺序不能乱", order.join(" / "));
   } else {
-    pass("三档之间的顺序不能乱", `${high.score} > ${medium.score} > ${low.score}`);
+    pass("五档之间的顺序不能乱", order.join(" > "));
   }
 }
 
 {
   /**
    * 这条是整套换算规则的"安全边界"：
-   * 即使 medium 加满所有修正，也不能超过 low 之外的档位顺序 ——
-   * 具体说，medium 加满（60+8+5=73）必须仍然低于 high 的底分（85）。
+   * 即使 medium 加满所有修正，也不能超过上一档（high）的底分。
    * 不然排序会跨档反超，"高危"这个词就没意义了。
+   *
+   * 五档之后这条更关键：最小档位间距只有 15 分，
+   * 而两个修正加起来是 13 分 —— 只差 2 分，全靠 computeRisk 里的 cap 兜住。
    */
   const mediumMax = computeRisk("medium", { defensibility: 0, hasWarning: true });
   const highMin = computeRisk("high", { defensibility: 100, hasWarning: false });
@@ -242,13 +249,58 @@ await (async () => {
 }
 
 {
-  const r = computeRisk("high", { defensibility: 0, hasWarning: true });
-  if (r.score !== 98) {
-    fail("最高分不会顶到 100", `期望 98（85+8+5），实际 ${r.score}`);
-  } else if (!r.reason.includes("85")) {
+  /**
+   * 每一档加满修正都不能顶到上一档头上。
+   * 逐档检查，因为以后有人加新档位或改底分时，这一组会立刻炸。
+   */
+  const levels = ["fatal", "high", "medium", "low", "minor"];
+  let broken = "";
+  for (let i = 1; i < levels.length; i++) {
+    const lowerMax = computeRisk(levels[i], { defensibility: 0, hasWarning: true });
+    const upperMin = computeRisk(levels[i - 1], { defensibility: 100, hasWarning: false });
+    if (lowerMax.score >= upperMin.score) {
+      broken = `${levels[i]} 加满 ${lowerMax.score} >= ${levels[i - 1]} 底分 ${upperMin.score}`;
+      break;
+    }
+  }
+  if (broken) {
+    fail("每一档加满修正都不跨档", broken);
+  } else {
+    pass("每一档加满修正都不跨档", "fatal > high > medium > low > minor 全程保持");
+  }
+}
+
+{
+  const r = computeRisk("fatal", { defensibility: 0, hasWarning: true });
+  if (r.score !== 99) {
+    fail("最高分不会顶到 100", `期望 99（95+8+5=108，夹到 99），实际 ${r.score}`);
+  } else if (!r.reason.includes("95")) {
     fail("最高分不会顶到 100", `reason 里应该说明底分，实际：${r.reason}`);
   } else {
     pass("最高分不会顶到 100", r.reason);
+  }
+}
+
+{
+  /**
+   * 纵轴能不能拉开，全看这一条：
+   * 五档两两组合应该能算出足够多的不同分数。
+   * 三档的时候这里只有 3 种结果，纵轴就是一条水平线。
+   */
+  const levels = ["fatal", "high", "medium", "low", "minor"];
+  const scores = new Set();
+  for (const a of levels) {
+    for (const b of levels) {
+      scores.add(defensibilityFromRisk([
+        computeRisk(a, { defensibility: 80, hasWarning: false }).score,
+        computeRisk(b, { defensibility: 80, hasWarning: false }).score,
+      ]));
+    }
+  }
+  if (scores.size < 6) {
+    fail("五档两两组合至少能算出 6 种稳度", `只有 ${scores.size} 种：${[...scores].sort((x, y) => y - x).join(", ")}`);
+  } else {
+    pass("五档两两组合至少能算出 6 种稳度", `${scores.size} 种：${[...scores].sort((x, y) => y - x).join(", ")}`);
   }
 }
 
@@ -366,7 +418,7 @@ await (async () => {
   });
   const r = await generateQuestions([C2], OUTLINE, fixed(bad));
   if (r.ok) return fail("level 写成中文被拒绝", "期望失败，实际成功了");
-  pass("level 写成中文被拒绝", "只认 high/medium/low");
+  pass("level 写成中文被拒绝", "只认 fatal/high/medium/low/minor");
 })();
 
 /* ---------------------------------------------------------------

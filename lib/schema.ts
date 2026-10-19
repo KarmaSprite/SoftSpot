@@ -130,7 +130,31 @@ export const RawRetrievalSchema = z.object({
  *     而且模型给自己刚生成的问题打分，天然会往高里打。
  *     给三档再换算，至少保证同一条主张两次跑出来落在同一档位。
  */
-export const RiskLevelSchema = z.enum(["high", "medium", "low"]);
+/**
+ * 危险等级。
+ *
+ * **为什么是五档而不是三档** —— 这是实测撞出来的。
+ *
+ * 第一版是三档（high / medium / low，底分 85 / 60 / 35）。
+ * 真跑两份提纲发现：模型把绝大多数问题都判成 high，剩下的判成 medium，
+ * low 一次都没出现。于是一条主张的两个问题几乎总是 [85, 60]，
+ * 七条主张算出来的"稳度"全是同一个数 ——
+ * 四象限图的纵轴变成一条水平线，整张图退化成只有横轴在动。
+ *
+ * 三档的毛病是**颗粒度太粗**：模型面对"会不会换题"这种判断，
+ * 只能在"会 / 可能会 / 不会"里选，而真实的开题里大量问题落在中间地带
+ * （"会追问得很凶但不用换题"和"问一句就过去了"是两回事）。
+ *
+ * 五档把中间地带拆开了，模型才有地方表达差别：
+ *   fatal  致命   —— 答不上来直接换题
+ *   high   高危   —— 答不上来会被追到底，方案得大改
+ *   medium 中等   —— 答不好会扣分，能当场补
+ *   low    较低   —— 会被问，但大多数人都答得上
+ *   minor  轻微   —— 顺口一提，不答也不影响
+ *
+ * 底分见 lib/risk.ts。档位越多，纵轴越能拉开 —— 这是这一版改动的全部目的。
+ */
+export const RiskLevelSchema = z.enum(["fatal", "high", "medium", "low", "minor"]);
 
 export const RawQuestionSchema = z.object({
   question: NonEmptyText,

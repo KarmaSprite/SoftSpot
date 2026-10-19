@@ -170,13 +170,80 @@ console.log("\n[4] 对一批文献：取最像的，撞得多再加分");
 
 // ---------- 5. 第二维：答得上来吗 ----------
 
-console.log("\n[5] 第二维：最危险的那个问题决定这条主张稳不稳");
+console.log("\n[5] 第二维：最危险的那个问题占大头，全部问题的平均补剩下的");
 {
-  check("最危险 92 分 → 稳度 8", defensibilityFromRisk([92]) === 8, String(defensibilityFromRisk([92])));
-  check("只看最高的，不被低的拉高", defensibilityFromRisk([92, 20, 15]) === 8, String(defensibilityFromRisk([92, 20, 15])));
-  check("最危险 0 分 → 稳度 100", defensibilityFromRisk([0]) === 100, String(defensibilityFromRisk([0])));
+  /*
+     这一组的期望值全是手算出来的，不是跑一遍抄回来的。
+     算法在 lib/similarity.ts 里：
+       压力 = 最危险 × 0.65 + 平均 × 0.35
+       稳度 = 100 - (压力 - 20) / 88 × 100，夹在 0-100
+
+     20 是五档里最低的底分（minor），108 是致命档加上所有修正（95+8+5）。
+     这两个常数必须跟 lib/risk.ts 的 LEVEL_BASE 对得上 ——
+     改了底分忘了改这里，纵轴就会被压扁，下面第 [5] 组末尾那条断言会炸。
+  */
+
+  // [92] → 压力 92 → (92-20)/88 = 0.8182 → 100 - 81.82 = 18.18 → 18
+  check("只有一个 92 分的问题 → 稳度 18", defensibilityFromRisk([92]) === 18, String(defensibilityFromRisk([92])));
+
+  // [92,20,15] → 最危险 92，平均 (92+20+15)/3 = 42.33 → 压力 = 92×0.65 + 42.33×0.35 = 59.8 + 14.82 = 74.62
+  //   (74.62-20)/88 = 0.6206 → 100 - 62.06 = 37.94 → 38
+  check(
+    "两个很低的问题会把最危险那个的分拉回来一点",
+    defensibilityFromRisk([92, 20, 15]) === 38,
+    String(defensibilityFromRisk([92, 20, 15])),
+  );
+
+  // [0] → 压力 0 → (0-20)/88 是负数，夹到 0 → 稳度 100
+  check("危险分 0 → 稳度 100", defensibilityFromRisk([0]) === 100, String(defensibilityFromRisk([0])));
+
   check("没被质询过 → 50（不知道，不是满分）", defensibilityFromRisk([]) === 50, String(defensibilityFromRisk([])));
+
+  // [130] → 压力 130 → (130-20)/88 = 1.25，夹到 1 → 稳度 0
   check("危险分超 100 也不会变负", defensibilityFromRisk([130]) === 0, String(defensibilityFromRisk([130])));
+
+  /*
+     下面是这一版真正要解决的问题：五档底分要摊得开。
+     底分是 fatal 95 / high 75 / medium 55 / low 35 / minor 20（见 lib/risk.ts）。
+     这五个数字是这一组的主角 —— 三档时这里只有 3 种结果，纵轴就是一条水平线。
+  */
+
+  // [95,95] → 压力 95 → (95-20)/88 = 0.8523 → 100 - 85.23 = 14.77 → 15
+  check("两个致命 → 稳度 15（最该改）", defensibilityFromRisk([95, 95]) === 15, String(defensibilityFromRisk([95, 95])));
+
+  // [95,75] → 最危险 95，平均 85 → 压力 = 61.75 + 29.75 = 91.5
+  //   (91.5-20)/88 = 0.8125 → 100 - 81.25 = 18.75 → 19
+  check("致命 + 高危 → 稳度 19", defensibilityFromRisk([95, 75]) === 19, String(defensibilityFromRisk([95, 75])));
+
+  // [75,75] → 压力 75 → (75-20)/88 = 0.625 → 100 - 62.5 = 37.5 → 38
+  check("两个高危 → 稳度 38", defensibilityFromRisk([75, 75]) === 38, String(defensibilityFromRisk([75, 75])));
+
+  // [75,55] → 最危险 75，平均 65 → 压力 = 48.75 + 22.75 = 71.5
+  //   (71.5-20)/88 = 0.5852 → 100 - 58.52 = 41.48 → 41
+  check("一高一中 → 稳度 41", defensibilityFromRisk([75, 55]) === 41, String(defensibilityFromRisk([75, 55])));
+
+  // [55,55] → 压力 55 → (55-20)/88 = 0.3977 → 100 - 39.77 = 60.23 → 60
+  check("两个中危 → 稳度 60（过半，但不高）", defensibilityFromRisk([55, 55]) === 60, String(defensibilityFromRisk([55, 55])));
+
+  // [35,35] → 压力 35 → (35-20)/88 = 0.1705 → 100 - 17.05 = 82.95 → 83
+  check("两个较低 → 稳度 83", defensibilityFromRisk([35, 35]) === 83, String(defensibilityFromRisk([35, 35])));
+
+  // [20,20] → 压力 20 → (20-20)/88 = 0 → 稳度 100
+  check("两个轻微 → 稳度 100（问题清单自己说这条站得住）", defensibilityFromRisk([20, 20]) === 100, String(defensibilityFromRisk([20, 20])));
+
+  /*
+     最关键的一条断言：纵轴必须真的能动。
+     第一版八条主张全是 15，三档那一版七条里六条还是同一个数，
+     这一版如果还是全一样，那这次修改就没意义。
+  */
+  const realCombos = [[95, 95], [95, 75], [75, 75], [75, 55], [55, 55], [35, 35], [20, 20]];
+  const spread = realCombos.map(defensibilityFromRisk);
+  const distinct = new Set(spread).size;
+  check(
+    "五档的七种组合，算出来七个不同的分数",
+    distinct === 7,
+    `算出 ${JSON.stringify(spread)}，只有 ${distinct} 种`,
+  );
 }
 
 // ---------- 6. 去重 ----------

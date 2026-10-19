@@ -320,13 +320,45 @@ export function scoreCorpus(claim: TokenBag, docs: TokenBag[]): CorpusScore {
 /**
  * 从质询问题的危险分反推"这条主张答得上来吗"。
  *
- * 为什么用**最高**危险分而不是平均：
- * 一条主张能不能守住，看最难的那个问题你能不能答上来。
- * 平均分会被"问了两个很温和的问题"这种假安全拉高 ——
- * 实际上只要有一个致命问题答不上来，这条主张就是站不住的。
+ * 这一版改过两次，两次都是被"纵轴不动"逼出来的。
  *
- * 所以：defensibility = 100 - 最危险的那个问题。
+ * **第一次**：写的是 `defensibility = 100 - 最危险的那个问题`。
+ * 真跑一遍发现 18 个问题里 14 个被标成"高危"（底分 85），
+ * 于是 `100 - 85 = 15` 成了唯一答案，八条主张全压在同一条水平线上，
+ * 四象限地图退化成一维图 —— 横轴在动，纵轴是死的。
+ * 公式本身没错（答辩被问倒一次就完了），错在它只用了 0-100 里的最上面 15 分。
+ *
+ * **第二次**（现在这版）：分两步算。
+ *
+ * 第一步，算压力。最危险的那个占 65%，全部问题的平均占 35%。
+ *   为什么最危险的权重高：一条致命问题答不上来，另外几个答得再好也救不回来。
+ *   为什么平均也要占 35%：两个高危和"一个高危加一个中危"是两种处境，
+ *   只看最大值会把它们算成同一个分数，等于丢掉了信息。
+ *
+ * 第二步，把压力摊到整条轴上。
+ *   压力的实际取值区间是 20（五档里最低的底分）到 108（致命档加上所有修正），
+ *   而这两个极端几乎不可能出现。
+ *   直接拿 100 减压力，结果永远落在 0 到 80 之间，纵轴上沿是空的。
+ *   所以把 [20, 108] 这一段线性拉伸到 [0, 100]：
+ *     压力 20  → 稳度 100（几乎没压力）
+ *     压力 108 → 稳度 0（彻底崩）
+ *
+ * 这样五档底分就能摊到整条轴上：
+ *   两个致命 → 15    致命+高危 → 19    两个高危 → 38
+ *   高危+中等 → 41   两个中等 → 60     两个较低 → 83
+ *
+ * 为什么允许 100：两个问题都只是"轻微"档，说明这条主张确实站得住。
+ * 这不是替用户宣布安全，是问题清单自己给出的结论。
+ *
+ * 注意 PRESSURE_FLOOR / CEIL 必须跟 lib/risk.ts 的 LEVEL_BASE 对得上：
+ * 有人改了底分而忘了改这两个常数，纵轴就会重新被压扁。
+ * 自检脚本 check-similarity.mjs 第 [5] 组专门锁了这一点。
  */
+export const PRESSURE_FLOOR = 20;
+export const PRESSURE_CEIL = 108;
+const WEIGHT_WORST = 0.65;
+const WEIGHT_AVERAGE = 0.35;
+
 export function defensibilityFromRisk(risks: number[]): number {
   if (risks.length === 0) {
     /*
@@ -338,5 +370,12 @@ export function defensibilityFromRisk(risks: number[]): number {
   }
 
   const worst = Math.max(...risks);
-  return Math.min(100, Math.max(0, 100 - worst));
+  const average = risks.reduce((sum, risk) => sum + risk, 0) / risks.length;
+  const pressure = worst * WEIGHT_WORST + average * WEIGHT_AVERAGE;
+
+  const span = PRESSURE_CEIL - PRESSURE_FLOOR;
+  const ratio = (pressure - PRESSURE_FLOOR) / span;
+  const clamped = Math.min(1, Math.max(0, ratio));
+
+  return Math.round(100 - clamped * 100);
 }
