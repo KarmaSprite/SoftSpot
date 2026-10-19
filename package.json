@@ -10,7 +10,8 @@
     "check:arxiv": "node scripts/check-arxiv.mjs",
     "check:crossref": "node scripts/check-crossref.mjs",
     "check:retrieval": "node scripts/check-retrieval.mjs",
-    "check:similarity": "node scripts/check-similarity.mjs"
+    "check:similarity": "node scripts/check-similarity.mjs",
+    "check:search": "node scripts/check-search.mjs"
   },
   "dependencies": {
     "next": "15.5.28",

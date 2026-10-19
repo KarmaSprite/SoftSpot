@@ -1,15 +1,19 @@
 /**
- * POST /api/analyze —— 一次完整的分析：提纲 → 主张 → 质询问题。
+ * POST /api/analyze —— 一次完整的分析：提纲 → 主张 → 质询问题 → 检索打分。
  *
- * 这一步（5b）只做"串起来"和"看得见"，不做检索打分。
- * 所以主张的 overlap / defensibility 先统一填 50，
- * 并在响应里带 scoresArePlaceholder: true 明说这是占位值。
+ * 第 13 步把三件事接进来了：L2-A 检索意图翻译、arXiv 和 Crossref 真检索、
+ * 以及把检索结果算成「别人做过吗」的分数。
  *
- * 为什么要显式标出来，而不是默默填 50：
- * 第 12 步才做真正的二维打分。如果现在不标记，
- * 前端会把 50 当成"真的查过了"，等第 12 步换成真分数时，
- * 你会以为"分数怎么突然变了，是不是有 bug"。
- * 占位值必须自己承认自己是占位值。
+ * 这一步最关键的设计不是"怎么查"，是**怎么在查不到的时候不说谎**。
+ *
+ * 三种情况必须分开：
+ *   1. 查了，一篇都没有       → 分数 0，这是有效结论（可能真的很新）
+ *   2. 查了，但那个库没答话   → 分数不可信，要标出来
+ *   3. 一个库都没答话         → 分数不可信，而且要在报告顶上明说
+ *
+ * 混成一种，用户就会把"我不知道"读成"没人做过"。
+ * 这个产品的全部价值建立在"分数是可信的"上面，一旦开始编，
+ * 它跟那些到答辩前才告诉你重复的查重工具就没区别了。
  */
 
 import { NextResponse } from "next/server";
@@ -23,6 +27,9 @@ import {
 } from "@/lib/deepseek";
 import { extractClaims } from "@/lib/extract";
 import { generateQuestions } from "@/lib/question";
+import { translateClaims } from "@/lib/retrieval";
+import { searchAllClaims } from "@/lib/search";
+import { defensibilityFromRisk } from "@/lib/similarity";
 import { AnalysisResultSchema, formatIssues } from "@/lib/schema";
 import type { Claim, Question } from "@/lib/types";
 
@@ -41,17 +48,19 @@ const BodySchema = z.object({
 });
 
 /**
- * 占位分数。
+ * 没被质询过的主张，可辩护度给多少。
  *
- * 为什么是 50 而不是 0 或 100：
- *   1. 50 正好在四象限分界线上。lib/quadrant.ts 里 >= 50 算"高"侧，
- *      所以 50 会被判成"有人做过 + 答得上来"（crowded）。
- *      这个位置最中性 —— 它不假装自己很新，也不假装自己很稳。
- *   2. lib/risk.ts 里 LOW_DEFENSIBILITY_THRESHOLD 也是 50，
- *      而判断用的是 < 50，所以 50 不会额外加 8 分惩罚。
- *      换成 49 就会让所有问题的风险分虚高。
+ * 为什么是 50 而不是 100：
+ * 100 等于说"这条你完全答得上来"，但我们根本没问过它。
+ * 50 是"不知道"，落在四象限分界线上，图上不会把它推到"你的主场"里去 ——
+ * 把没问过的东西算成优势，比算成劣势危险得多。
+ *
+ * 为什么不是 0：0 等于说"这条你肯定答不上来"，同样是编。
+ *
+ * 这个常数和 lib/similarity.ts 里 defensibilityFromRisk 对空数组的处理
+ * 是同一个值、同一个理由 —— 那边是"没被质询过 ≠ 没问题"。
  */
-const PLACEHOLDER_SCORE = 50;
+const UNQUESTIONED_DEFENSIBILITY = 50;
 
 /* ---------------------------------------------------------------
    2. 主处理
@@ -116,19 +125,42 @@ export async function POST(request: Request) {
 
   const warnings: string[] = [...extracted.warnings];
 
+  const rawClaims = extracted.data.claims;
+
   /**
-   * 把 L1 的 RawClaim 补成带分数的 Claim。
+   * L1 返回的是 RawClaim（没有分数），但质询和检索的签名要 Claim。
+   * 这里先套一层临时分数 50/50，纯粹为了让类型对上。
    *
-   * 注意这里的 id 原样保留 —— 后面质询要按 id 关联。
-   * 如果这里重新编号，模型给的问题就会指向不存在的主张。
+   * 为什么是 50：它在四象限分界线上，任何地方都不会被读成"确定的高"或"确定的低"。
+   * 这层临时值**不会出现在最终响应里** —— 下面 L3 组装时会整个覆盖掉。
+   *
+   * 注意 id 原样保留：后面质询要按 id 关联检索结果，
+   * 重新编号会让所有关联断掉。
    */
-  const claims: Claim[] = extracted.data.claims.map((raw) => ({
+  const stagedClaims: Claim[] = rawClaims.map((raw) => ({
     ...raw,
-    overlap: PLACEHOLDER_SCORE,
-    defensibility: PLACEHOLDER_SCORE,
+    overlap: UNQUESTIONED_DEFENSIBILITY,
+    defensibility: UNQUESTIONED_DEFENSIBILITY,
   }));
 
-  /* ---------- L2-B：质询 ---------- */
+  /* ---------- L2-A：翻译检索意图 ---------- */
+
+  /*
+     为什么翻译要单独等，不跟后面的质询并发：
+     检索依赖翻译结果（没有英文术语就没法查 arXiv），
+     而质询不依赖翻译。所以顺序必须是
+       翻译 → 然后「质询」和「检索」并发。
+     反过来的话，检索会拿到空数组，所有分数都变成 0。
+
+     这一步是 9 次模型调用（每条主张一次），实测 20 秒上下。
+  */
+  const translated = await translateClaims(stagedClaims, outline, client.call);
+  if (!translated.ok) {
+    return NextResponse.json({ error: translated.error }, { status: 422 });
+  }
+  warnings.push(...translated.warnings);
+
+  /* ---------- 质询 + 检索，并发 ---------- */
 
   /**
    * warnedClaimIds 从 L1 的警告里还原出来。
@@ -141,7 +173,6 @@ export async function POST(request: Request) {
    * 改类型要动 extract.ts、它的 18 个测试、还有将来的调用方。
    * 这里用 "（c1）" 这个格式去匹配，格式在 extract.ts 里是写死的，
    * 如果那边改了格式，这里会静默失效（不报错，只是少加 5 分）。
-   * 所以下面加了一条自检：真漏了会在 warnings 里多一句提示。
    */
   const warnedClaimIds = new Set<string>();
   for (const w of extracted.warnings) {
@@ -149,16 +180,76 @@ export async function POST(request: Request) {
     if (m) warnedClaimIds.add(m[1]);
   }
 
-  const questioned = await generateQuestions(claims, outline, client.call, {
-    warnedClaimIds,
-  });
+  /*
+     质询和检索互不依赖，所以并发。
+     为什么不三个（含翻译）一起并发：检索要用翻译的产出，这是真依赖。
+
+     并发的收益是实测过的：质询 30 秒、检索 27 秒，
+     串行 57 秒，并发取最大 30 秒。总时长从 80 秒压到 55 秒左右。
+  */
+  const [questioned, searched] = await Promise.all([
+    generateQuestions(stagedClaims, outline, client.call, { warnedClaimIds }),
+    searchAllClaims(stagedClaims, translated.data),
+  ]);
+
   if (!questioned.ok) {
     return NextResponse.json({ error: questioned.error }, { status: 422 });
   }
-
   warnings.push(...questioned.warnings);
+  warnings.push(...searched.warnings);
 
-  /* ---------- L3：组装 + 自检 ---------- */
+  /* ---------- L3：组装分数 ---------- */
+
+  /**
+   * 每条主张的「答得上来吗」= 100 - 它最危险那个问题的风险分。
+   *
+   * 为什么用最危险的那个而不是平均：
+   * 答辩时只要被问倒一次就完了，另外七个答得再好也救不回来。
+   * 平均会把一条致命的漏洞稀释成"整体还行"。
+   */
+  const risksByClaim = new Map<string, number[]>();
+  for (const question of questioned.data) {
+    const list = risksByClaim.get(question.claimId);
+    if (list) {
+      list.push(question.risk);
+    } else {
+      risksByClaim.set(question.claimId, [question.risk]);
+    }
+  }
+
+  /**
+   * 检索没查成的主张。
+   *
+   * 这些主张的 overlap 会填 0（lib/overlap.ts 在 sourcesAnswered = 0 时就是这么返回的），
+   * 但 0 分在图上落在最左边，读起来是"没人做过"——那是在说谎。
+   * 所以这里单独记一份名单，前端要把这些点画成"不知道"的样子，
+   * 而不是画成一个确定的 0 分。
+   */
+  const blindClaimIds: string[] = [];
+
+  const claims: Claim[] = rawClaims.map((raw) => {
+    const risk = risksByClaim.get(raw.id) ?? [];
+    const defensibility =
+      risk.length === 0 ? UNQUESTIONED_DEFENSIBILITY : defensibilityFromRisk(risk);
+
+    const found = searched.byClaimId.get(raw.id);
+    if (!found || !found.trustworthy) {
+      blindClaimIds.push(raw.id);
+      return {
+        ...raw,
+        overlap: found?.overlap.score ?? 0,
+        defensibility,
+      };
+    }
+
+    return {
+      ...raw,
+      overlap: found.overlap.score,
+      defensibility,
+    };
+  });
+
+  /* ---------- L3：自检 ---------- */
 
   const questions: Question[] = questioned.data;
 
@@ -196,8 +287,25 @@ export async function POST(request: Request) {
     /** 估算花费（元）。只是估算，不含缓存折扣，会比真实账单略高一点。 */
     costYuan: estimateCost(usage),
     model: DEFAULT_MODEL,
-    /** 明说分数是占位的，第 12 步才会换成真分数。 */
-    scoresArePlaceholder: true,
+    /** 分数这次是真算的，不是占位值了。 */
+    scoresArePlaceholder: false,
+    /**
+     * 哪些主张的分数不可信（一个数据库都没查成）。
+     * 前端要把这些点画成"不知道"，不能画成一个确定的低分。
+     */
+    blindClaimIds,
+    /** 每个主张的检索证据，界面上可以展开看"最像的是哪一篇"。 */
+    search: [...searched.byClaimId.values()].map((item) => ({
+      claimId: item.claimId,
+      trustworthy: item.trustworthy,
+      score: item.overlap.score,
+      reason: item.overlap.reason,
+      totalHits: item.overlap.totalHits,
+      sources: item.sources,
+      bestHit: item.overlap.bestHit,
+    })),
+    /** 有几个源答话了（全部主张里最差的那个），0 表示整份报告的分数都不可信。 */
+    minSourcesAnswered: searched.minSourcesAnswered,
     elapsedMs: Date.now() - startedAt,
   });
 }

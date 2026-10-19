@@ -174,21 +174,27 @@ export function buildArxivQuery(
 /**
  * 一条主张该发的全部 arXiv 查询。
  *
- * 为什么三种都发：
+ * 为什么默认三种都发：
  * 实测「action research」+ vocational 短语查 0 条、拆词查 2 条。
  * 只发短语会漏，只发拆词会混进大量噪声。
  * 三个都发再按 arXiv id 去重合并，召回和精度都保住。
  *
- * 代价是每条主张三次请求，而 arXiv 限速 3 秒一次 —— 6 条主张要 54 秒。
- * 这个代价在第 13 步会重新算账：那时候要把「三种模式」压成「两种」，
- * 并且并发跟 Crossref 交叉着跑，总时长才压得下来。
+ * 但真跑批量分析时不能三种都发 —— 见 modes 参数：
+ * arXiv 官方限速是 3 秒一次，一次分析 9 条主张，
+ * 三种全发 = 27 次请求 = 至少 78 秒纯等待，
+ * 产品承诺的「60 秒出报告」直接破产。
+ *
+ * 所以调用方（lib/search.ts）传 modes = ["mixed", "words"]：
+ * 砍掉纯短语那种（mixed 拼出来的就是「短语 AND 关键词」，已经覆盖了），
+ * 把时间预算留给「每条主张都查得完」而不是「每条主张查得最全」。
+ * 少查到的部分由第 19 步手工粘贴补。
+ * 默认值保持三种全发，自检和手工排查时用得上。
  */
-export function buildArxivQueries(intent: RetrievalQuery): string[] {
-  const queries = [
-    buildArxivQuery(intent, "mixed"),
-    buildArxivQuery(intent, "words"),
-    buildArxivQuery(intent, "phrase"),
-  ];
+export function buildArxivQueries(
+  intent: RetrievalQuery,
+  modes: Array<"phrase" | "words" | "mixed"> = ["mixed", "words", "phrase"],
+): string[] {
+  const queries = modes.map((mode) => buildArxivQuery(intent, mode));
 
   // 有可能三种拼出来是同一个串（比如只有一个关键词），去重避免白花一次限速
   return Array.from(new Set(queries));
