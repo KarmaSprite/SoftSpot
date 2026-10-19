@@ -1,67 +1,34 @@
 /**
- * 全项目共用的数据结构。
+ * 全项目共用的数据结构 —— 对外只认这一个入口。
  *
- * 为什么单独放一个文件：
- * 页面、API、模型调用、评分函数都要用到同一套字段名。
- * 字段名只在这里定义一次，别处一律 import，改名时只改一处。
+ * 为什么这里不再手写 interface：
+ * 之前 Claim / Question 在这里手写一遍，schema 里再写一遍，同一件事写两遍，
+ * 迟早不一致。现在真正的定义在 lib/schema.ts（zod），这里只做两件事：
+ *   1. 把类型转出来，别处一律 `import type { Claim } from "@/lib/types"`
+ *   2. 放纯常量（界面文案之类，跟校验无关的东西）
+ *
+ * 这样改字段只有一个地方要动：lib/schema.ts。
  */
 
-/* ---------------------------------------------------------------
-   1. 主张
-   --------------------------------------------------------------- */
+import type { ClaimType } from "./schema";
 
-/** 主张只有三种类型，不要发明第四种。 */
-export type ClaimType = "problem" | "method" | "expectation";
+export type {
+  ClaimType,
+  RawClaim,
+  Claim,
+  Question,
+  ExtractResult,
+  RetrievalQuery,
+  AnalysisResult,
+} from "./schema";
+
+/* ---------------------------------------------------------------
+   界面文案：跟校验无关，所以留在这里
+   --------------------------------------------------------------- */
 
 /** 三种类型在界面上的中文名。 */
 export const CLAIM_TYPE_LABEL: Record<ClaimType, string> = {
   problem: "问题",
   method: "方法",
   expectation: "预期",
-};
-
-/** 一条主张。 */
-export type Claim = {
-  /** 稳定 id，用来把问题和主张对上，如 "c1" */
-  id: string;
-  /** 原文片段，必须是提纲里真实出现过的话，不许模型自己编 */
-  text: string;
-  /** 这条主张属于哪一类 */
-  type: ClaimType;
-  /** 在提纲里的位置，如「研究问题 第 2 段」 */
-  location: string;
-  /** 0-100，越高表示这个想法别人做过越多 */
-  overlap: number;
-  /** 0-100，越高表示这条主张你越答得上来 */
-  defensibility: number;
-};
-
-/* ---------------------------------------------------------------
-   2. 质询问题
-   --------------------------------------------------------------- */
-
-/** 一条质询问题。 */
-export type Question = {
-  /** 稳定 id，如 "q1" */
-  id: string;
-  /** 这条问题针对哪条主张，对应 Claim.id */
-  claimId: string;
-  /** 老师会怎么问 */
-  question: string;
-  /** 为什么问这个 —— 讲清动机，用户才知道该怎么改 */
-  why: string;
-  /** 及格线：答到这 3 条，老师会点头 */
-  checklist: string[];
-  /** 0-100，越高表示你答不上来的概率越大 */
-  risk: number;
-};
-
-/* ---------------------------------------------------------------
-   3. 一次分析的完整结果
-   --------------------------------------------------------------- */
-
-/** 一次完整分析的结果，也是 /api/analyze 的返回体。 */
-export type AnalysisResult = {
-  claims: Claim[];
-  questions: Question[];
 };
