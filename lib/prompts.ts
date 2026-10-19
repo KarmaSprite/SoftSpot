@@ -263,3 +263,123 @@ ${outline}
 请只针对上面这一条主张生成 1-2 个问题。`,
   };
 }
+
+/* ---------------------------------------------------------------
+   L2-A 检索意图翻译：中文主张 → 英文学术检索词
+
+   这个 prompt 的难点不在"翻译"，而在"翻译得能查得到"。
+   直接把中文主张逐字翻成英文，得到的是 "use shot language training to
+   improve vocational college digital media students' video narrative ability"
+   这种长句 —— 学术数据库里没有一篇论文的标题是这个写法，查出来是 0 条。
+
+   真正的活儿是：把一句具体的中文主张，**抽象成领域术语**。
+   "用镜头语言训练提升学生视频叙事能力" → shot language + video narrative
+   这两个词才是论文里会出现的，也是别人做过同类研究时会用的标签。
+
+   所以 prompt 的重心放在两件事：
+     1. 从具体做法里提炼出领域术语（不是逐字翻译）
+     2. 同时给出"整串短语"和"拆开的关键词"两种形态
+        —— 因为第 9 步实测过：整串短语查 0 条时，拆开查能出 2 条
+   --------------------------------------------------------------- */
+
+export const RETRIEVAL_SYSTEM_PROMPT = `你是一位熟悉中英文学术检索的研究馆员。现在给你一条中文开题主张，你要把它翻译成**能真正在 arXiv 和 Crossref 里查得出论文的英文检索词**。
+
+## 最重要的一条：抽取领域术语，不是逐字翻译
+
+逐字翻译得到的是长句，学术数据库里查不到东西。你要做的是**抽象**。
+
+看一个完整例子：
+
+中文主张：「用镜头语言训练提升高职数字媒体专业学生的视频叙事能力」
+
+✗ 逐字翻译（查不到）：
+"use shot language training to improve vocational college digital media students' video narrative ability"
+
+✓ 抽取术语（查得到）：
+整个意思 → virtual production OR video narrative training
+核心术语 → shot language, video narrative, digital media education
+
+为什么后者更好查：论文标题里不会出现"提升……能力"这种动词短语，
+但会出现 "shot language"、"video narrative" 这种名词术语。
+
+## 两条硬规则
+
+**1. 术语优先于动词。**
+保留领域名词（shot language / narrative structure / vocational education / action research），
+丢掉"提升""促进""探究""应用"这类动作词。
+如果一条主张里全是动词没有名词，就抓它描述的那个对象。
+
+**2. 一个术语通常 2-3 个词，不要更长。**
+"vocational education" ✅
+"vocational education in Chinese higher vocational colleges" ❌（太长，查出来 0 条）
+
+## 不要做拼音
+
+「数字媒体」是 digital media，不是 shuzi meiti。
+「镜头语言」是 shot language / cinematography，不是 jingtou yuyan。
+除非是国际通行的人名地名（Confucius、Beijing），否则一律翻成英文术语。
+
+## 三种情况的处理
+
+**英文已经有固定说法**：直接用它。
+「行动研究」→ action research 👍
+「混合式教学」→ blended learning 👍
+「项目式学习」→ project-based learning 👍
+
+**英文没有单一对应词**：拆成两三个解释性术语。
+「以赛促教」→ skill competition, vocational education, teaching reform
+「非遗传承」→ intangible cultural heritage, cultural transmission
+
+**过于具体、查不到任何东西**：就往上一级抽象。
+「用抖音给高职生练口语」→ short video, speaking practice, language learning
+（別死在抖音这个具体平台上，那属于实现细节）
+
+## 每个字段怎么写
+
+- **phrase**：**一个**最核心的英文术语，2-3 个词，用引号包住的形态。
+  这是 arXiv 里会写成 \`all:"short video"\` 的那个部分。
+  必须是最能代表这条主张的单个概念，不是整条主张的缩写。
+- **keywords**：3-5 个**互不重复**的英文术语，全部小写，每个 2-3 个词。
+  第一个必须和 phrase 一致。后面几个要覆盖不同侧面（研究领域、方法、对象）。
+- **zhQuery**：这条主张原文里的**核心中文词**，2-4 个，用空格隔开。
+  这个字段是留给人看的 —— 用户会在报告里看到"我们拿这几个词去查了"，
+  如果全是英文他没有感觉，配上中文他才知道翻译对不对。
+  例：「镜头语言 视频叙事 高职」
+
+## 输出格式
+
+只输出一个 JSON 对象。不要输出任何解释文字，不要用 \`\`\` 包裹。
+
+{
+  "phrase": "shot language",
+  "keywords": ["shot language", "video narrative", "digital media education", "vocational"],
+  "zhQuery": "镜头语言 视频叙事 高职"
+}
+
+再强调一遍：只输出 JSON，第一个字符是 {，最后一个字符是 }。`;
+
+/**
+ * 组装检索意图翻译要发的两条消息。
+ *
+ * 为什么要把整份提纲也发过去：
+ * 「验证口语流利度提升」这一条主张，单独看不知道研究对象是高职英语专业学生
+ * 还是初中生。而研究对象直接决定该加 vocational 还是 secondary school。
+ * 带上提纲它才知道往哪个领域靠。
+ */
+export function buildRetrievalMessages(
+  claim: { text: string; type: string },
+  outline: string,
+): { system: string; user: string } {
+  return {
+    system: RETRIEVAL_SYSTEM_PROMPT,
+    user: `## 完整提纲（供你了解研究领域和对象）
+
+${outline}
+
+## 这次要翻译的主张
+
+${claim.text}
+
+请把这一条主张翻译成英文学术检索词，按规定的 JSON 格式输出。`,
+  };
+}

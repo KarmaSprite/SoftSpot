@@ -20,6 +20,7 @@ export type {
   RawQuestion,
   Question,
   ExtractResult,
+  RawRetrieval,
   RetrievalQuery,
   AnalysisResult,
 } from "./schema";

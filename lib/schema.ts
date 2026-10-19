@@ -71,14 +71,45 @@ export const ClaimSchema = RawClaimSchema.extend({
    3. L2-A 检索意图翻译：中文主张 → 英文学术检索词
    --------------------------------------------------------------- */
 
+/**
+ * 一条主张翻译出来的检索意图。
+ *
+ * 为什么是"短语 + 关键词 + 中文原文"三样，而不是一个自然语言长句：
+ *
+ * arXiv 认的是结构化查询语法 all:"short video" AND all:education，
+ * 塞一段英文长句进去它只当一堆词做模糊匹配，查出来全是噪声。
+ * 第 9 步实测过：整串短语查 0 条时，拆成单词查能出 2 条 ——
+ * 所以两种形态必须都留着，到发请求时再各自拼成合规的查询串。
+ *
+ * zhQuery 不参与检索，纯粹是给人看的：
+ * 报告里要写"我们拿这几个词去查了"，如果只显示英文，
+ * 用户没法判断翻译对不对，也就没法发现我们翻错了。
+ */
 export const RetrievalQuerySchema = z.object({
+  /** 这条主张的 id。由代码填，不让模型填。 */
   claimId: NonEmptyText,
-  query: NonEmptyText,
+  /** 最核心的一个英文术语，2-3 个词，如 "shot language" */
+  phrase: NonEmptyText,
+  /** 3-5 个英文术语，第一个必须和 phrase 一致 */
   keywords: z.array(NonEmptyText).min(1).max(6),
+  /** 原文里的核心中文词，2-4 个，用空格隔开。给人看的。 */
+  zhQuery: NonEmptyText,
 });
 
 export const RetrievalQueryListSchema = z.object({
   queries: z.array(RetrievalQuerySchema).min(1).max(20),
+});
+
+/**
+ * 模型实际返回的形状 —— 跟 RetrievalQuerySchema 的区别就一处：没有 claimId。
+ *
+ * 理由和第 8 步一样：一次只翻一条主张，代码知道这是哪条，
+ * 让模型填 claimId 它就会填错，然后被校验拦下来，白花一次钱。
+ */
+export const RawRetrievalSchema = z.object({
+  phrase: NonEmptyText,
+  keywords: z.array(NonEmptyText).min(1).max(6),
+  zhQuery: NonEmptyText,
 });
 
 /* ---------------------------------------------------------------
@@ -191,5 +222,6 @@ export type RiskLevel = z.infer<typeof RiskLevelSchema>;
 export type RawQuestion = z.infer<typeof RawQuestionSchema>;
 export type Question = z.infer<typeof QuestionSchema>;
 export type ExtractResult = z.infer<typeof ExtractResultSchema>;
+export type RawRetrieval = z.infer<typeof RawRetrievalSchema>;
 export type RetrievalQuery = z.infer<typeof RetrievalQuerySchema>;
 export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;

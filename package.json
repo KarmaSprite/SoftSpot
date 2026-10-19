@@ -8,7 +8,8 @@
     "start": "next start",
     "check": "node scripts/check-schema.mjs && node scripts/check-parse.mjs && node scripts/check-extract.mjs && node scripts/check-question.mjs",
     "check:arxiv": "node scripts/check-arxiv.mjs",
-    "check:crossref": "node scripts/check-crossref.mjs"
+    "check:crossref": "node scripts/check-crossref.mjs",
+    "check:retrieval": "node scripts/check-retrieval.mjs"
   },
   "dependencies": {
     "next": "15.5.28",
