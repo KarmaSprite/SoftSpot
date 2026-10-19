@@ -1274,167 +1274,367 @@ textarea {
 /* ---------- 12. 调试面板 ---------- */
 
 /*
-   替代 Next.js 自带的英文按钮。固定在左下角，开发模式才有。
-   配色全部复用上面的变量，不新增颜色，改主题时这里自动跟着变。
+   替代 Next.js 自带的英文按钮。只在开发模式渲染，生产构建里整块会被摇掉。
+   配色全部复用上面的变量，切主题时这里自动跟着变，不新增颜色。
 */
 
-.debug-root {
+.dbg-root {
   position: fixed;
-  bottom: 16px;
-  left: 16px;
   z-index: 9000;
+  /* 没拖过的时候靠 left/bottom 定位，拖过之后由 JS 写死 left/top */
+}
+
+/*
+   圆按钮：40×40。
+   为什么是圆的而不是原来那个带文字的胶囊：
+   胶囊按钮上有字，字会跟着主题变色，压住内容时又挡视线；
+   圆形只占一个点，拖到哪儿都不太碍事，图标本身用深底白字，两种主题下都清楚。
+*/
+.dbg-btn {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.debug-btn {
-  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 13px;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--ink-soft);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  box-shadow: 0 1px 3px var(--shadow-soft);
-  transition: border-color 0.15s ease, color 0.15s ease;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 1px 4px var(--shadow-float);
+  /* 拖动时不要选中文字，也不要触发浏览器的滚动 */
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  transition: transform 0.12s ease, border-color 0.15s ease;
 }
 
-.debug-btn:hover {
-  border-color: var(--faint);
-  color: var(--ink);
+.dbg-btn:hover {
+  transform: scale(1.06);
 }
 
-/* 按钮上的状态点：不点开也知道正不正常 */
-.debug-dot {
+.dbg-btn:active {
+  cursor: grabbing;
+}
+
+.dbg-icon {
+  /* 图标本身不接收指针事件，否则拖动时 e.target 会是它，坐标不好算 */
+  pointer-events: none;
+  letter-spacing: -0.5px;
+}
+
+/*
+   状态点：挂在按钮右下角，做成描边小圆点。
+   为什么要描边：点可能压在深色按钮上，也可能压在页面白底上，
+   描边保证两种背景上都能看出这是个点。
+*/
+.dbg-btn .dbg-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* 面板里的点是小号内联点，跟按钮上那个不一样 */
+.dbg-dot {
+  display: inline-block;
+  flex-shrink: 0;
   width: 7px;
   height: 7px;
-  border-radius: var(--radius-pill);
+  border-radius: 50%;
   background: var(--faint);
-  flex-shrink: 0;
 }
 
-.debug-dot-ok {
+.dbg-dot-ok {
   background: var(--good);
 }
 
-.debug-dot-warn {
+.dbg-dot-warn {
   background: var(--warn);
 }
 
-.debug-dot-error {
+.dbg-dot-error {
   background: var(--danger);
 }
 
-.debug-panel {
-  width: 300px;
-  max-width: calc(100vw - 32px);
-  padding: 14px 16px 16px;
+/*
+   面板：绝对定位，锚在按钮上。
+   四个方向由 dbg-up/dbg-down + dbg-left/dbg-right 组合出来，
+   因为按钮能拖到屏幕任何位置，固定从下方弹出必然有一半情况会顶出屏幕。
+*/
+.dbg-panel {
+  position: absolute;
+  width: 296px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  padding: 12px 14px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: 0 8px 28px var(--shadow-float);
 }
 
-.debug-title {
+/* 往上弹：面板底边贴在按钮上方 */
+.dbg-up {
+  bottom: calc(100% + 8px);
+}
+
+/* 往下弹：面板顶边贴在按钮下方 */
+.dbg-down {
+  top: calc(100% + 8px);
+}
+
+/* 按钮在右半屏时，面板右边对齐按钮右边，往左长 */
+.dbg-right {
+  right: 0;
+}
+
+.dbg-left {
+  left: 0;
+}
+
+/* 三档大小：只调字号和行距，宽度不变，免得每次调都重新算换行 */
+.dbg-size-compact {
+  width: 268px;
+  font-size: 11px;
+}
+
+.dbg-size-normal {
+  width: 296px;
+  font-size: 12px;
+}
+
+.dbg-size-roomy {
+  width: 320px;
+  font-size: 13px;
+}
+
+.dbg-size-compact .dbg-row,
+.dbg-size-compact .dbg-note {
+  line-height: 1.45;
+}
+
+.dbg-size-roomy .dbg-row,
+.dbg-size-roomy .dbg-note {
+  line-height: 1.8;
+}
+
+/* ----- 标题条 ----- */
+
+.dbg-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 10px;
-  padding-bottom: 9px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--line-soft);
+}
+
+.dbg-head-title {
   color: var(--ink);
   font-size: var(--fs-sm);
   font-weight: 600;
 }
 
-.debug-title span:last-child {
+.dbg-head-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
   color: var(--muted);
   font-size: var(--fs-xs);
-  font-weight: 400;
 }
 
-.debug-row {
+.dbg-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.dbg-close:hover {
+  background: var(--sunken);
+  color: var(--ink);
+}
+
+/* ----- 分组 ----- */
+
+.dbg-group {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.dbg-group:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.dbg-group-title {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+}
+
+/* ----- 键值行 ----- */
+
+.dbg-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  padding: 4px 0;
+  gap: 10px;
+  padding: 3px 0;
   font-size: var(--fs-xs);
+  line-height: 1.6;
 }
 
-.debug-key {
-  color: var(--muted);
+.dbg-key {
   flex-shrink: 0;
+  color: var(--muted);
 }
 
-.debug-val {
+.dbg-val {
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
   text-align: right;
   word-break: break-all;
 }
 
-.debug-val-ok {
+.dbg-val-ok {
   color: var(--good);
 }
 
-.debug-val-warn {
+.dbg-val-warn {
   color: var(--warn);
 }
 
-.debug-warn {
-  margin-top: 10px;
-  padding: 9px 11px;
+/* ----- 分段按钮（主题 / 大小） ----- */
+
+.dbg-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+}
+
+.dbg-seg-btn {
+  padding: 2px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.dbg-seg-btn:hover {
+  color: var(--ink);
+}
+
+.dbg-seg-btn.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ----- 告警块 ----- */
+
+.dbg-warn {
+  margin: 8px 0;
+  padding: 8px 10px;
   border-radius: var(--radius-control);
   background: var(--q-weak-bg);
 }
 
-.debug-warn-label {
+.dbg-warn-title {
   display: block;
-  margin-bottom: 4px;
-  color: var(--q-weak);
-  font-size: var(--fs-xs);
+  margin-bottom: 3px;
+  color: var(--q-weak-ink);
+  font-size: 11px;
   font-weight: 600;
 }
 
-.debug-warn ul {
+.dbg-warn ul {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
-.debug-warn li {
+.dbg-warn li {
   color: var(--ink-soft);
-  font-size: var(--fs-xs);
+  font-size: 11px;
   line-height: 1.55;
 }
 
-.debug-retry {
+/* ----- 操作按钮 ----- */
+
+.dbg-action {
+  display: block;
   width: 100%;
-  margin-top: 12px;
-  padding: 7px 12px;
+  margin-top: 6px;
+  padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   background: var(--bg);
   color: var(--ink-soft);
-  font-size: var(--fs-xs);
+  font-size: 11px;
   font-weight: 600;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  text-align: center;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
-.debug-retry:hover:not(:disabled) {
+.dbg-action:hover:not(:disabled) {
   border-color: var(--faint);
   background: var(--surface);
 }
 
-.debug-retry:disabled {
+.dbg-action:disabled {
   color: var(--faint);
   cursor: not-allowed;
+}
+
+.dbg-note {
+  margin-top: 5px;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+/* ----- 窄屏 ----- */
+
+@media (max-width: 600px) {
+  .dbg-panel {
+    width: 264px;
+    font-size: 11px;
+  }
+
+  .dbg-size-roomy {
+    width: 280px;
+  }
 }
