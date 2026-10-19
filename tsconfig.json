@@ -6,6 +6,12 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // 允许 import "./schema.ts" 这种带后缀的写法。
+    // 为什么需要：scripts/ 下的自检脚本是 .mjs，由 Node 直接跑，
+    // Node 的 ESM 解析器不认"省略后缀"，必须写全 ./schema.ts。
+    // 而 Next/TypeScript 默认禁止这种写法，所以要在这里放开。
+    // noEmit 为 true 时放开它是安全的：反正不产出 JS，不会出现 .ts 后缀泄漏到产物里。
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
