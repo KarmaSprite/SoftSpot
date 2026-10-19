@@ -26,6 +26,7 @@ import {
   type Usage,
 } from "@/lib/deepseek";
 import { extractClaims } from "@/lib/extract";
+import { blendDefensibility, evidenceOf, type EvidenceResult } from "@/lib/evidence";
 import { generateQuestions } from "@/lib/question";
 import { translateClaims } from "@/lib/retrieval";
 import { searchAllClaims } from "@/lib/search";
@@ -201,11 +202,17 @@ export async function POST(request: Request) {
   /* ---------- L3：组装分数 ---------- */
 
   /**
-   * 每条主张的「答得上来吗」= 100 - 它最危险那个问题的风险分。
+   * 纵轴 = 校准后的证据分 + 问题压力微调（最多 ±15 分）。
    *
-   * 为什么用最危险的那个而不是平均：
-   * 答辩时只要被问倒一次就完了，另外七个答得再好也救不回来。
-   * 平均会把一条致命的漏洞稀释成"整体还行"。
+   * 为什么不是「100 - 最危险那个问题」：
+   * 那个算法真跑两份提纲都得到同一个数（八条主张全是 15 / 全 19），
+   * 八个点压在同一条水平线上，四象限图退化成只有横轴在动。
+   * 原因是质询引擎对任何一条主张都会问出「你有数据吗」「怎么排除班级差异」
+   * 这类致命问题 —— 这是它的本职，所以危险度天然没有区分度。
+   *
+   * 现在的纵轴主要看「提纲自己撑不撑得住这条主张」（lib/evidence.ts，纯代码数
+   * 数字/方法词/出处/具体程度），问题压力只做上下微调。
+   * 推导过程（含为什么不是 0.6/0.4 加权）写在 lib/evidence.ts 的注释里。
    */
   const risksByClaim = new Map<string, number[]>();
   for (const question of questioned.data) {
@@ -227,10 +234,17 @@ export async function POST(request: Request) {
    */
   const blindClaimIds: string[] = [];
 
+  /** 每条主张的证据分明细，前端要显示「这个分是怎么来的」。 */
+  const evidenceById = new Map<string, EvidenceResult>();
+
   const claims: Claim[] = rawClaims.map((raw) => {
     const risk = risksByClaim.get(raw.id) ?? [];
-    const defensibility =
+    const pressure =
       risk.length === 0 ? UNQUESTIONED_DEFENSIBILITY : defensibilityFromRisk(risk);
+
+    const evidence = evidenceOf(raw as Claim);
+    evidenceById.set(raw.id, evidence);
+    const defensibility = blendDefensibility(evidence.score, pressure);
 
     const found = searched.byClaimId.get(raw.id);
     if (!found || !found.trustworthy) {
@@ -303,6 +317,20 @@ export async function POST(request: Request) {
       totalHits: item.overlap.totalHits,
       sources: item.sources,
       bestHit: item.overlap.bestHit,
+    })),
+    /**
+     * 纵轴分数的明细。
+     *
+     * 为什么要返回这个：纵轴现在主要看「提纲自己有没有证据」，
+     * 用户看到一条主张是 37 分，一定会问"为什么"。
+     * 把四个维度命中什么、各给多少分一起送回去，界面直接摊开给他看 ——
+     * 诊断类产品如果给不出理由，用户只会觉得是玄学。
+     */
+    evidence: [...evidenceById.entries()].map(([claimId, result]) => ({
+      claimId,
+      score: result.score,
+      reason: result.reason,
+      dimensions: result.dimensions,
     })),
     /** 有几个源答话了（全部主张里最差的那个），0 表示整份报告的分数都不可信。 */
     minSourcesAnswered: searched.minSourcesAnswered,
