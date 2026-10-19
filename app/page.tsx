@@ -2,16 +2,22 @@
 
 import { useState } from "react";
 
+import SoftSpotMap from "@/components/SoftSpotMap";
+import { MOCK_RESULT } from "@/lib/mock";
+import type { AnalysisResult } from "@/lib/types";
+
 export default function Home() {
   const [outline, setOutline] = useState("");
+  const [result, setResult] = useState<AnalysisResult | null>(null);
 
   const count = outline.trim().length;
   const canSubmit = count > 0;
 
   function handleSubmit() {
     if (!canSubmit) return;
-    console.log(`提纲已收到：${count} 字`);
-    console.log(outline);
+    // 第 3b 步：先灌假数据，只为把界面画出来。
+    // 第 6 步起这里会换成 fetch("/api/analyze")。
+    setResult(MOCK_RESULT);
   }
 
   return (
@@ -75,6 +81,24 @@ export default function Home() {
           </li>
         </ol>
       </section>
+
+      {result && (
+        <section className="report">
+          <div className="report-head">
+            <h2>软肋地图</h2>
+            <p>
+              横轴看「这个想法别人做过吗」，纵轴看「这条主张你答得上来吗」。
+              落在右下角那几颗，就是最该改的。
+            </p>
+          </div>
+
+          <SoftSpotMap claims={result.claims} />
+
+          <p className="report-footnote">
+            这张图用的是假数据，第 6 步起会换成你的真实提纲。
+          </p>
+        </section>
+      )}
     </main>
   );
 }
