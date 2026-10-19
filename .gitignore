@@ -41,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 本地详细计划：记录每一步的卡点和踩过的坑，给评委看的简版是 plan.md
+plan.local.md
