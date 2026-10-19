@@ -7,35 +7,119 @@
 
 /* ---------- 1. 设计变量 ---------- */
 
+/*
+   主题怎么切：
+   - <html> 上没有 data-theme 时，color-scheme 是 "light dark"，跟随系统；
+   - <html data-theme="light"> 时强制浅色；
+   - <html data-theme="dark"> 时强制深色。
+   color-scheme 是继承属性，设在 :root 上，全站每个元素都能读到同一个值。
+
+   为什么所有颜色都写成 light-dark(浅色, 深色)：
+   另一种写法是写两套变量块（:root 一套、[data-theme="dark"] 一套），
+   要重复 60 行变量名。改一个颜色得改两处，早晚漏一处，漏的那处就是一块白斑。
+   light-dark() 把两支写在同一行，物理上漏不掉。
+   而且它顺带解决了浏览器自己画的那些东西 —— 滚动条、输入框光标、
+   下拉框、文字选中的底色 —— 这些是 CSS 管不到的，只认 color-scheme。
+*/
 :root {
-  /* 颜色：一套冷灰 + 一个强调色（墨蓝）。不要再混暖色进去。 */
-  --ink: #14161a;
-  --ink-soft: #3a3f47;
-  --muted: #545b64;
-  --faint: #666d76;
-  --line: #dfe1e5;
-  --line-soft: #eceef1;
-  --bg: #f7f8f9;
-  --surface: #ffffff;
+  color-scheme: light dark;
 
-  --accent: #24479f;
-  --accent-dark: #1a3576;
-  --accent-soft: #eef2fb;
+  /* 底色三层：页面底 / 面板 / 比面板再低一层的填充 */
+  --bg: light-dark(#f7f8f9, #0f1114);
+  --surface: light-dark(#ffffff, #16191d);
+  --sunken: light-dark(#f4f5f7, #1e2228);
 
-  --danger: #a83a2c;
-  --warn: #7d6414;
-  --good: #1f6b46;
+  /* 文字四级：正文 / 次要 / 说明 / 脚注 */
+  --ink: light-dark(#14161a, #e6e8eb);
+  --ink-soft: light-dark(#3a3f47, #c8ccd2);
+  --muted: light-dark(#545b64, #9aa1ab);
+  --faint: light-dark(#666d76, #868d97);
 
-  /* 四象限配色：底色极淡，圆点用饱和度高的那支。
-     背景负责分区，圆点负责被找到，两者分工不重叠。 */
-  --q-home: #1f6b46;
-  --q-home-bg: #f0f5f1;
+  /* 线两级：结构分隔 / 行内分隔 */
+  --line: light-dark(#dfe1e5, #2b3037);
+  --line-soft: light-dark(#eceef1, #22262c);
+
+  /*
+     强调色拆成五个变量，每个只管一件事。
+     原来只有 --accent / --accent-dark 两个，结果同一个值既要当按钮底色
+     又要当浅底上的文字色，深色模式下这两件事需要的亮度是反的：
+     按钮底要够深才能压住白字，浅底上的字要够亮才能看清。
+     合成一个变量，改一边必然坏另一边。
+  */
+  --accent: light-dark(#24479f, #3b62c9); /* 实心按钮底 */
+  --accent-hover: light-dark(#1a3576, #4a71d8); /* 实心按钮悬停底 */
+  --accent-ink: light-dark(#1a3576, #7d9bee); /* 浅底上的强调文字 */
+  --accent-soft: light-dark(#eef2fb, #1a2338); /* 强调色的浅底 */
+  --on-accent: #ffffff; /* 实心强调底上的字，两种主题都用白 */
+
+  /* 语义色：当色块用（点、竖条、徽章底） */
+  --danger: light-dark(#a83a2c, #d9756a);
+  --warn: light-dark(#7d6414, #c9a227);
+  --good: light-dark(#1f6b46, #4fa877);
+
+  /* 实心红徽章：底和字分开，因为白字压在 #d9756a 上只有 3.1:1 */
+  --danger-solid: light-dark(#a83a2c, #b04a3e);
+  --on-danger: #ffffff;
+
+  /* 禁用按钮：底要够浅，字要够深，否则一眼看不出是灰的 */
+  --btn-off-bg: light-dark(#e6e8eb, #23272d);
+
+  /*
+     四象限配色：底色极淡，圆点用饱和度高的那支。
+     背景负责分区，圆点负责被找到，两者分工不重叠。
+     每种象限三个变量：圆点色 / 浅底上的文字色 / 底色。
+     文字色和圆点色必须分开：圆点要够深才压得住白字，
+     文字要够深才在浅底上看得清，深色模式下这两个方向是反的。
+  */
+  --q-home: light-dark(#1f6b46, #2f7a55);
+  --q-home-ink: light-dark(#1f6b46, #6fc79a);
+  --q-home-bg: light-dark(#f0f5f1, #14201a);
+
   --q-crowded: #6b7480;
-  --q-crowded-bg: #f1f2f4;
+  --q-crowded-ink: light-dark(#5f6874, #b9c0ca);
+  --q-crowded-bg: light-dark(#f1f2f4, #1a1e24);
+
   --q-foggy: #8a6a00;
-  --q-foggy-bg: #f7f4ec;
-  --q-weak: #a83a2c;
-  --q-weak-bg: #f8efed;
+  --q-foggy-ink: light-dark(#8a6a00, #d9b552);
+  --q-foggy-bg: light-dark(#f7f4ec, #201c12);
+
+  /*
+     深色下的红点比浅色亮一档（#b8483a 而不是 #a83a2c）。
+     原因：深色的「最该改」象限底色是 #241715，本来就带红，
+     红点压在同色相的深底上只有 2.74:1，几乎看不出是个点。
+     提亮到 #b8483a 之后是 3.33:1（图形元素 3:1 达标），
+     白字压在上面仍有 5.22:1，两头都过得去。
+  */
+  --q-weak: light-dark(#a83a2c, #b8483a);
+  --q-weak-ink: light-dark(#a83a2c, #e89a8f);
+  --q-weak-bg: light-dark(#f8efed, #241715);
+
+  /* 地图上的线和四角标签底 */
+  --map-axis: light-dark(#d3d6db, #333941);
+  --map-tag-bg: light-dark(rgba(255, 255, 255, 0.72), rgba(18, 21, 26, 0.72));
+
+  /*
+     悬停提示框：两种主题下都是深底。
+     它是浮层，必须跟底下的内容彻底分开；浅色主题下深底最显眼，
+     深色主题下用比页面更深的底 + 更亮的字，靠对比度而不是靠变白来区分。
+  */
+  --tip-bg: light-dark(#14161a, #1b1f26);
+  --tip-ink: light-dark(#f2f3f5, #e9ecf0);
+  --tip-meta: light-dark(#b9bdc6, #a4abb5);
+  --tip-line: light-dark(rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.12));
+  --tip-shadow-color: light-dark(rgba(16, 18, 24, 0.22), rgba(0, 0, 0, 0.55));
+  --tip-q-home-bg: light-dark(rgba(31, 107, 70, 0.32), rgba(31, 107, 70, 0.45));
+  --tip-q-home-ink: #8fe0b8;
+  --tip-q-crowded-bg: light-dark(rgba(107, 116, 128, 0.34), rgba(107, 116, 128, 0.45));
+  --tip-q-crowded-ink: #cdd3dd;
+  --tip-q-foggy-bg: light-dark(rgba(138, 106, 0, 0.32), rgba(138, 106, 0, 0.45));
+  --tip-q-foggy-ink: #f0cf72;
+  --tip-q-weak-bg: light-dark(rgba(168, 58, 44, 0.32), rgba(168, 58, 44, 0.45));
+  --tip-q-weak-ink: #f4a99d;
+
+  /* 阴影只给浮层用，所以只需要阴影颜色，不需要整套 box-shadow 变量 */
+  --shadow-soft: light-dark(rgba(16, 18, 24, 0.1), rgba(0, 0, 0, 0.5));
+  --shadow-float: light-dark(rgba(16, 18, 24, 0.18), rgba(0, 0, 0, 0.6));
 
   /* 字号：六级跳着走。
      不要写 11 / 11.5 / 12 / 12.5 / 13 / 13.5 / 14 这种一路挤，
@@ -59,6 +143,24 @@
   --radius-panel: 10px;
   --radius-control: 8px;
   --radius-pill: 999px;
+}
+
+/*
+   这两行是 light-dark() 的开关，不能省。
+   light-dark(浅色, 深色) 取哪一支，只看当前元素的 color-scheme：
+   - "light dark"  = 跟随系统，由浏览器决定（用户系统是深色就是深色）
+   - "light"       = 强制取第一支
+   - "dark"        = 强制取第二支
+   只设 data-theme 而不改 color-scheme，属性设上了颜色却一动不动 —— 这是踩过的坑。
+   用 :root[data-theme=...] 而不是 [data-theme=...]：属性挂在 <html> 上，
+   带上 :root 表示只有根元素这一层能改，子元素就算误加同名属性也不会翻车。
+*/
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 /* ---------- 2. 基础重置 ---------- */
@@ -194,7 +296,7 @@ textarea {
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
-  background: #fbfbfc;
+  background: var(--sunken);
   color: var(--ink);
   font-size: var(--fs-sm);
   line-height: 1.8;
@@ -240,7 +342,7 @@ textarea {
   border: none;
   border-radius: var(--radius-control);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-size: var(--fs-base);
   font-weight: 550;
   letter-spacing: 0.5px;
@@ -248,7 +350,7 @@ textarea {
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: var(--accent-dark);
+  background: var(--accent-hover);
 }
 
 .submit-btn:active:not(:disabled) {
@@ -261,7 +363,7 @@ textarea {
    禁用控件不强制满足 4.5:1，但能读总比不能读好。
 */
 .submit-btn:disabled {
-  background: #e6e8eb;
+  background: var(--btn-off-bg);
   color: var(--faint);
   cursor: not-allowed;
 }
@@ -437,7 +539,7 @@ textarea {
 .map-axis {
   position: absolute;
   z-index: 2;
-  background: #d3d6db;
+  background: var(--map-axis);
 }
 
 .map-axis-h {
@@ -460,7 +562,7 @@ textarea {
   z-index: 3;
   padding: 3px 8px;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--map-tag-bg);
   font-size: var(--fs-xs);
   font-weight: 600;
   pointer-events: none;
@@ -488,19 +590,19 @@ textarea {
 }
 
 .map-tag-home {
-  color: var(--q-home);
+  color: var(--q-home-ink);
 }
 
 .map-tag-crowded {
-  color: var(--q-crowded);
+  color: var(--q-crowded-ink);
 }
 
 .map-tag-foggy {
-  color: var(--q-foggy);
+  color: var(--q-foggy-ink);
 }
 
 .map-tag-weak {
-  color: var(--q-weak);
+  color: var(--q-weak-ink);
 }
 
 /* 每个点的容器：定位靠 inline style 的 left / top */
@@ -523,7 +625,7 @@ textarea {
   height: 22px;
   border: 2px solid var(--surface);
   border-radius: var(--radius-pill);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -566,9 +668,9 @@ textarea {
   max-width: 70vw;
   padding: 10px 12px;
   border-radius: var(--radius-control);
-  background: var(--ink);
-  color: #f2f3f5;
-  box-shadow: 0 6px 20px rgba(16, 18, 24, 0.22);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  box-shadow: 0 6px 20px var(--tip-shadow-color);
   opacity: 0;
   visibility: hidden;
   transform: translateX(-50%);
@@ -595,7 +697,7 @@ textarea {
 }
 
 .spot-tip-text {
-  color: #f2f3f5;
+  color: var(--tip-ink);
   font-size: var(--fs-xs);
   line-height: 1.65;
 }
@@ -607,8 +709,8 @@ textarea {
   gap: 4px 10px;
   margin-top: 7px;
   padding-top: 7px;
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
-  color: #b9bdc6;
+  border-top: 1px solid var(--tip-line);
+  color: var(--tip-meta);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -621,23 +723,23 @@ textarea {
 }
 
 .spot-tip-quad-home {
-  background: rgba(31, 107, 70, 0.32);
-  color: #8fe0b8;
+  background: var(--tip-q-home-bg);
+  color: var(--tip-q-home-ink);
 }
 
 .spot-tip-quad-crowded {
-  background: rgba(107, 116, 128, 0.34);
-  color: #cdd3dd;
+  background: var(--tip-q-crowded-bg);
+  color: var(--tip-q-crowded-ink);
 }
 
 .spot-tip-quad-foggy {
-  background: rgba(138, 106, 0, 0.32);
-  color: #f0cf72;
+  background: var(--tip-q-foggy-bg);
+  color: var(--tip-q-foggy-ink);
 }
 
 .spot-tip-quad-weak {
-  background: rgba(168, 58, 44, 0.32);
-  color: #f4a99d;
+  background: var(--tip-q-weak-bg);
+  color: var(--tip-q-weak-ink);
 }
 
 /* 轴说明与图例 */
@@ -717,7 +819,7 @@ textarea {
 .claim-table thead th {
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
-  background: #fbfbfc;
+  background: var(--sunken);
   color: var(--muted);
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -736,7 +838,7 @@ textarea {
 }
 
 .claim-table tbody tr:hover {
-  background: #fcfcfd;
+  background: var(--sunken);
 }
 
 .col-no {
@@ -767,17 +869,17 @@ textarea {
 
 .badge-problem {
   background: var(--q-weak-bg);
-  color: var(--q-weak);
+  color: var(--q-weak-ink);
 }
 
 .badge-method {
   background: var(--accent-soft);
-  color: var(--accent-dark);
+  color: var(--accent-ink);
 }
 
 .badge-expectation {
   background: var(--q-home-bg);
-  color: var(--q-home);
+  color: var(--q-home-ink);
 }
 
 /* 主张正文 */
@@ -808,22 +910,22 @@ textarea {
 
 .claim-quad-home {
   background: var(--q-home-bg);
-  color: var(--q-home);
+  color: var(--q-home-ink);
 }
 
 .claim-quad-crowded {
   background: var(--q-crowded-bg);
-  color: var(--q-crowded);
+  color: var(--q-crowded-ink);
 }
 
 .claim-quad-foggy {
   background: var(--q-foggy-bg);
-  color: var(--q-foggy);
+  color: var(--q-foggy-ink);
 }
 
 .claim-quad-weak {
   background: var(--q-weak-bg);
-  color: var(--q-weak);
+  color: var(--q-weak-ink);
 }
 
 /*
@@ -833,7 +935,7 @@ textarea {
 .score-bar {
   height: 3px;
   border-radius: var(--radius-pill);
-  background: #e9ebee;
+  background: var(--line-soft);
   overflow: hidden;
 }
 
@@ -911,16 +1013,21 @@ textarea {
   width: 22px;
   height: 22px;
   border-radius: var(--radius-pill);
-  background: #f1f2f4;
+  background: var(--sunken);
   color: var(--muted);
   font-size: var(--fs-xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
+/*
+   序号用 -ink 而不是 --q-weak：--q-weak 是画圆点用的实心色，
+   深色下压在同样深色的 --q-weak-bg 上只有 2.74:1，白字倒是很清楚。
+   同一管墨不能既当底色又当字色 —— 这就是 -ink 这套变量存在的原因。
+*/
 .question-card.is-danger .question-no {
   background: var(--q-weak-bg);
-  color: var(--q-weak);
+  color: var(--q-weak-ink);
 }
 
 .question-text {
@@ -936,7 +1043,7 @@ textarea {
   margin-top: 3px;
   padding: 1px 9px;
   border-radius: var(--radius-pill);
-  background: #f1f2f4;
+  background: var(--sunken);
   color: var(--muted);
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -944,8 +1051,8 @@ textarea {
 }
 
 .risk-badge.risk-high {
-  background: var(--danger);
-  color: #fff;
+  background: var(--danger-solid);
+  color: var(--on-danger);
 }
 
 /* 为什么问这个：做成引用块，不用带底色的盒子 */
@@ -1163,6 +1270,7 @@ textarea {
   }
 }
 
+
 /* ---------- 12. 调试面板 ---------- */
 
 /*
@@ -1192,7 +1300,7 @@ textarea {
   color: var(--ink-soft);
   font-size: var(--fs-xs);
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(16, 18, 24, 0.1);
+  box-shadow: 0 1px 3px var(--shadow-soft);
   transition: border-color 0.15s ease, color 0.15s ease;
 }
 
@@ -1229,7 +1337,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
   background: var(--surface);
-  box-shadow: 0 8px 28px rgba(16, 18, 24, 0.18);
+  box-shadow: 0 8px 28px var(--shadow-float);
 }
 
 .debug-title {
