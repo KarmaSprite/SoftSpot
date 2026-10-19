@@ -649,7 +649,315 @@ textarea {
   background: var(--danger);
 }
 
-/* ---------- 9. 窄屏 ---------- */
+/* ---------- 9. 主张表 ---------- */
+
+.report-head-sub {
+  margin-top: var(--gap-xl);
+}
+
+.table-wrap {
+  margin-top: var(--gap-lg);
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.claim-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.claim-table thead th {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #fafaf9;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.claim-table thead th:first-child {
+  border-top-left-radius: var(--radius-lg);
+}
+
+.claim-table thead th:last-child {
+  border-top-right-radius: var(--radius-lg);
+}
+
+.claim-table tbody td {
+  padding: 14px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+
+.claim-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.claim-table tbody tr:hover {
+  background: #fbfbfa;
+}
+
+.col-no {
+  width: 34px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  text-align: center !important;
+}
+
+.col-type {
+  width: 62px;
+}
+
+.col-score {
+  width: 104px;
+  white-space: nowrap;
+}
+
+/* 类型徽章 */
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-problem {
+  background: #fdecea;
+  color: #a8341f;
+}
+
+.badge-method {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.badge-expectation {
+  background: #e8f5ee;
+  color: #1d6b47;
+}
+
+/* 主张正文 */
+.claim-text {
+  color: var(--ink);
+  line-height: 1.65;
+}
+
+.claim-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.claim-loc {
+  font-variant-numeric: tabular-nums;
+}
+
+.claim-quad {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.claim-quad-home {
+  background: #e8f5ee;
+  color: #1d6b47;
+}
+
+.claim-quad-crowded {
+  background: #eef1f6;
+  color: #4a5468;
+}
+
+.claim-quad-foggy {
+  background: #fdf7e6;
+  color: #8a6a00;
+}
+
+.claim-quad-weak {
+  background: #fdecea;
+  color: #a8341f;
+}
+
+/* 分数条 */
+.score-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: #eeeff1;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.score-fill-overlap {
+  background: #8d94a3;
+}
+
+.score-fill-def {
+  background: var(--good);
+}
+
+.score-num {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 10. 质询问题清单 ---------- */
+
+.question-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  margin-top: var(--gap-lg);
+  list-style: none;
+}
+
+.question-card {
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.question-card.is-danger {
+  border-left-color: var(--danger);
+}
+
+.question-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.question-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f2f3f5;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.question-card.is-danger .question-no {
+  background: #fdecea;
+  color: #a8341f;
+}
+
+.question-text {
+  flex: 1;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.risk-badge {
+  flex-shrink: 0;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: #f2f3f5;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.risk-badge.risk-high {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* 为什么问这个 */
+.question-why {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: #fafaf9;
+  border: 1px solid var(--line-soft);
+}
+
+.why-label {
+  display: block;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  margin-bottom: 3px;
+}
+
+.question-why p {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* 及格线 */
+.checklist {
+  margin-top: 12px;
+}
+
+.checklist-label {
+  display: block;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  margin-bottom: 5px;
+}
+
+.checklist ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.check-mark {
+  flex-shrink: 0;
+  color: var(--good);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+/* ---------- 11. 窄屏 ---------- */
 
 @media (max-width: 600px) {
   .shell {
@@ -706,5 +1014,91 @@ textarea {
 
   .spot-tip {
     width: 210px;
+  }
+
+  /* 手机上表格改成卡片式，避免横向滚动 */
+  .table-wrap {
+    border: none;
+    background: transparent;
+    overflow-x: visible;
+  }
+
+  .claim-table,
+  .claim-table thead,
+  .claim-table tbody,
+  .claim-table tr,
+  .claim-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .claim-table thead {
+    display: none;
+  }
+
+  .claim-table tbody tr {
+    margin-bottom: var(--gap-sm);
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .claim-table tbody td {
+    padding: 0;
+    border-bottom: none;
+  }
+
+  .claim-table .col-no {
+    display: none;
+  }
+
+  .claim-table .col-type {
+    margin-bottom: 8px;
+    text-align: left !important;
+  }
+
+  .claim-table .col-score {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .claim-table .col-score::before {
+    flex-shrink: 0;
+    width: 62px;
+    color: var(--faint);
+    font-size: 11.5px;
+  }
+
+  /* 用倒数序号：一行里最后两个 td 一定是两个分数列。
+     不能用 nth-of-type(1)(2)，因为它数的是所有 td，不是只有 .col-score。 */
+  .claim-table .col-score:nth-last-of-type(2)::before {
+    content: "别人做过";
+  }
+
+  .claim-table .col-score:nth-last-of-type(1)::before {
+    content: "答得上来";
+  }
+
+  .claim-table .score-bar {
+    flex: 1;
+  }
+
+  .claim-table .score-num {
+    margin-top: 0;
+    width: 28px;
+    text-align: right;
+  }
+
+  .question-card {
+    padding: 15px 16px;
+  }
+
+  .question-text {
+    font-size: 14px;
   }
 }

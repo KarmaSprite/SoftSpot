@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import SoftSpotMap from "@/components/SoftSpotMap";
+import ClaimTable from "@/components/ClaimTable";
+import QuestionList from "@/components/QuestionList";
 import { MOCK_RESULT } from "@/lib/mock";
 import type { AnalysisResult } from "@/lib/types";
 
@@ -94,8 +96,26 @@ export default function Home() {
 
           <SoftSpotMap claims={result.claims} />
 
+          <div className="report-head report-head-sub">
+            <h2>主张明细</h2>
+            <p>
+              六条主张摊开看。横条越短越该注意：别人做过的那条越长，说明撞车的可能性越大。
+            </p>
+          </div>
+
+          <ClaimTable claims={result.claims} />
+
+          <div className="report-head report-head-sub">
+            <h2>质询问题清单</h2>
+            <p>
+              按「你答不上来的概率」从高到低排。红边框那几条，是老师最可能当场追问的。
+            </p>
+          </div>
+
+          <QuestionList questions={result.questions} />
+
           <p className="report-footnote">
-            这张图用的是假数据，第 6 步起会换成你的真实提纲。
+            这份报告用的是假数据，第 6 步起会换成你的真实提纲。
           </p>
         </section>
       )}
