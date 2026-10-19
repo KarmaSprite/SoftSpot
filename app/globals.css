@@ -1420,12 +1420,14 @@ textarea {
 }
 
 .dbg-size-compact .dbg-row,
-.dbg-size-compact .dbg-note {
+.dbg-size-compact .dbg-note,
+.dbg-size-compact .dbg-tree {
   line-height: 1.45;
 }
 
 .dbg-size-roomy .dbg-row,
-.dbg-size-roomy .dbg-note {
+.dbg-size-roomy .dbg-note,
+.dbg-size-roomy .dbg-tree {
   line-height: 1.8;
 }
 
@@ -1590,6 +1592,43 @@ textarea {
   color: var(--ink-soft);
   font-size: 11px;
   line-height: 1.55;
+}
+
+/* ----- 路由树 ----- */
+
+.dbg-tree {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-control);
+  background: var(--sunken);
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.dbg-tree-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 1px 0;
+}
+
+.dbg-tree-path {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.dbg-tree-files {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.dbg-tree-file {
+  color: var(--faint);
 }
 
 /* ----- 操作按钮 ----- */

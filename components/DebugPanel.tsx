@@ -37,6 +37,19 @@ type Health = {
   model: string;
 };
 
+type RouteEntry = {
+  path: string;
+  files: string[];
+};
+
+type DevInfo = {
+  nodeEnv: string;
+  turbopack: boolean;
+  nextVersion: string;
+  nodeVersion: string;
+  routes: RouteEntry[];
+};
+
 type Status = "idle" | "loading" | "ok" | "warn" | "error";
 
 type Pos = { x: number; y: number };
@@ -126,6 +139,7 @@ export default function DebugPanel() {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [health, setHealth] = useState<Health | null>(null);
+  const [devInfo, setDevInfo] = useState<DevInfo | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [error, setError] = useState("");
 
@@ -137,6 +151,9 @@ export default function DebugPanel() {
   /** 面板往上弹还是往下弹、往左对齐还是往右对齐 */
   const [up, setUp] = useState(true);
   const [alignRight, setAlignRight] = useState(false);
+
+  const [restarting, setRestarting] = useState(false);
+  const [restartMsg, setRestartMsg] = useState("");
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
@@ -170,7 +187,11 @@ export default function DebugPanel() {
     const started = Date.now();
 
     try {
-      const hRes = await fetch("/api/health", { cache: "no-store" });
+      // 两个接口并行发。它们互不依赖，串行等只是白等。
+      const [hRes, dRes] = await Promise.all([
+        fetch("/api/health", { cache: "no-store" }),
+        fetch("/api/dev-info", { cache: "no-store" }),
+      ]);
 
       if (!hRes.ok) throw new Error(`健康检查返回 ${hRes.status}`);
 
@@ -178,6 +199,13 @@ export default function DebugPanel() {
       setHealth(h);
       setElapsed(Date.now() - started);
       setError("");
+
+      // dev-info 挂了不该让整块面板变成"连不上"，它是加餐，失败就显示横杠。
+      if (dRes.ok) {
+        setDevInfo((await dRes.json()) as DevInfo);
+      } else {
+        setDevInfo(null);
+      }
 
       /*
         状态点只有三种颜色，但这里有四种情况：
@@ -360,6 +388,48 @@ export default function DebugPanel() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [hidden]);
 
+  /* ---------- 重启开发服务器 ---------- */
+
+  async function restart() {
+    setRestarting(true);
+    setRestartMsg("正在重启…");
+
+    try {
+      /*
+        /__nextjs_restart_dev 是 Next 开发服务器自己开的端点（实测 POST 返回 204）。
+        它不是公开 API，升级 Next 大版本有可能消失 —— 所以失败只显示一行字，
+        不影响面板其它部分，也不该让页面白屏。
+      */
+      const res = await fetch("/__nextjs_restart_dev", { method: "POST" });
+      if (!res.ok) throw new Error(`重启端点返回 ${res.status}`);
+
+      /*
+        重启过程中服务会短暂断开，立刻请求大概率失败。
+        所以不是"请求一次看结果"，而是"每 250ms 敲一次门，敲开为止"，最多等 10 秒。
+      */
+      let alive = false;
+      for (let i = 0; i < 40; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        try {
+          const ping = await fetch("/api/health", { cache: "no-store" });
+          if (ping.ok) {
+            alive = true;
+            break;
+          }
+        } catch {
+          // 还没起来，继续等
+        }
+      }
+
+      setRestartMsg(alive ? "已重启" : "重启超时，去看终端");
+      await check();
+    } catch (err) {
+      setRestartMsg(err instanceof Error ? err.message : "重启失败");
+    } finally {
+      setRestarting(false);
+    }
+  }
+
   /* ---------- 生产环境直接不渲染 ---------- */
 
   /*
@@ -431,7 +501,13 @@ export default function DebugPanel() {
 
             <div className="dbg-row">
               <span className="dbg-key">运行模式</span>
-              <span className="dbg-val">开发模式</span>
+              <span className="dbg-val">
+                {devInfo
+                  ? devInfo.nodeEnv === "development"
+                    ? "开发模式"
+                    : devInfo.nodeEnv
+                  : "—"}
+              </span>
             </div>
 
             <div className="dbg-row">
@@ -511,9 +587,58 @@ export default function DebugPanel() {
             </div>
           </div>
 
+          {/* ----- 路由 ----- */}
+          <div className="dbg-group">
+            <span className="dbg-group-title">路由</span>
+
+            <div className="dbg-row">
+              <span className="dbg-key">打包器</span>
+              <span className="dbg-val">
+                {devInfo ? (devInfo.turbopack ? "Turbopack" : "Webpack") : "—"}
+              </span>
+            </div>
+
+            <div className="dbg-row">
+              <span className="dbg-key">Next</span>
+              <span className="dbg-val">{devInfo?.nextVersion ?? "—"}</span>
+            </div>
+
+            <div className="dbg-row">
+              <span className="dbg-key">Node</span>
+              <span className="dbg-val">{devInfo?.nodeVersion ?? "—"}</span>
+            </div>
+
+            {devInfo && devInfo.routes.length > 0 && (
+              <ul className="dbg-tree">
+                {devInfo.routes.map((route) => (
+                  <li key={route.path} className="dbg-tree-row">
+                    <code className="dbg-tree-path">{route.path}</code>
+                    <span className="dbg-tree-files">
+                      {route.files.map((file) => (
+                        <span key={file} className="dbg-tree-file">
+                          {file}
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {/* ----- 开发 ----- */}
           <div className="dbg-group">
             <span className="dbg-group-title">开发</span>
+
+            <button
+              type="button"
+              className="dbg-action"
+              onClick={() => void restart()}
+              disabled={restarting}
+            >
+              {restarting ? "正在重启…" : "重启开发服务器"}
+            </button>
+            {restartMsg && <p className="dbg-note">{restartMsg}</p>}
 
             <button
               type="button"
