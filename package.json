@@ -12,7 +12,8 @@
     "check:retrieval": "node scripts/check-retrieval.mjs",
     "check:similarity": "node scripts/check-similarity.mjs",
     "check:search": "node scripts/check-search.mjs",
-    "check:evidence": "node scripts/check-evidence.mjs"
+    "check:evidence": "node scripts/check-evidence.mjs",
+    "check:websearch": "node scripts/check-websearch.mjs"
   },
   "dependencies": {
     "next": "15.5.28",
