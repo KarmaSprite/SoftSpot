@@ -16,6 +16,8 @@ export type {
   ClaimType,
   RawClaim,
   Claim,
+  RiskLevel,
+  RawQuestion,
   Question,
   ExtractResult,
   RetrievalQuery,

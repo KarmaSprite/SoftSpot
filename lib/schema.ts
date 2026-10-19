@@ -21,7 +21,7 @@ import { z } from "zod";
    --------------------------------------------------------------- */
 
 /** 非空文本：模型最容易犯的错就是返回空字符串，这里直接拦掉。 */
-const NonEmptyText = z.string().trim().min(1);
+export const NonEmptyText = z.string().trim().min(1);
 
 /**
  * 0-100 的分数。
@@ -85,6 +85,40 @@ export const RetrievalQueryListSchema = z.object({
    4. L2-B 质询生成：每条主张 1-2 个问题 + 及格线
    --------------------------------------------------------------- */
 
+/**
+ * 模型实际返回的形状 —— 注意它跟下面的 QuestionSchema 不一样。
+ *
+ * 差别在三个字段，而且这三个字段是**故意不让模型给**的：
+ *
+ *   id / claimId：一次只问一条主张，代码知道这是哪条，直接写上。
+ *     让模型填 claimId，它就会填错，然后被跨字段检查拦下来，
+ *     白白浪费一次调用。
+ *
+ *   risk：只让模型给 high/medium/low 三档，具体分数由 lib/risk.ts 换算。
+ *     为什么：让模型直接打 0-100 分，同一条主张跑两次能给 92 和 78 两个数；
+ *     而且模型给自己刚生成的问题打分，天然会往高里打。
+ *     给三档再换算，至少保证同一条主张两次跑出来落在同一档位。
+ */
+export const RiskLevelSchema = z.enum(["high", "medium", "low"]);
+
+export const RawQuestionSchema = z.object({
+  question: NonEmptyText,
+  why: NonEmptyText,
+  checklist: z.array(NonEmptyText).length(3),
+  level: RiskLevelSchema,
+});
+
+/**
+ * 一条主张的问题列表。
+ *
+ * 上限 2 是硬限制：模型天然想多问，不卡住它会给一条主张生成 5 个问题，
+ * 用户看不完，报告也会从"诊断"变成"恐吓"。
+ */
+export const RawQuestionListSchema = z.object({
+  questions: z.array(RawQuestionSchema).min(1).max(2),
+});
+
+/** 成品问题：模型给的三样 + 代码补的两样 + 代码算的分数。 */
 export const QuestionSchema = z.object({
   id: NonEmptyText,
   claimId: NonEmptyText,
@@ -153,6 +187,8 @@ export function formatIssues(error: z.ZodError): string {
 export type ClaimType = z.infer<typeof ClaimTypeSchema>;
 export type RawClaim = z.infer<typeof RawClaimSchema>;
 export type Claim = z.infer<typeof ClaimSchema>;
+export type RiskLevel = z.infer<typeof RiskLevelSchema>;
+export type RawQuestion = z.infer<typeof RawQuestionSchema>;
 export type Question = z.infer<typeof QuestionSchema>;
 export type ExtractResult = z.infer<typeof ExtractResultSchema>;
 export type RetrievalQuery = z.infer<typeof RetrievalQuerySchema>;
