@@ -24,9 +24,18 @@ const TYPE_CLASS: Record<ClaimType, string> = {
 
 type Props = {
   claims: Claim[];
+  /**
+   * 分数是不是占位值。
+   *
+   * 占位状态下两个分数都是 50，而 50 在 getQuadrant 里算"高"侧，
+   * 于是每一行都会被打上「有人做过了」的标签 —— 这是在说一句假话：
+   * 我们根本还没查过。所以占位时把标签换成「待检索」，
+   * 宁可显示"还不知道"，也不能显示一个自己没算过的结论。
+   */
+  placeholder?: boolean;
 };
 
-export default function ClaimTable({ claims }: Props) {
+export default function ClaimTable({ claims, placeholder = false }: Props) {
   return (
     <div className="table-wrap">
       <table className="claim-table">
@@ -57,30 +66,46 @@ export default function ClaimTable({ claims }: Props) {
                   <p className="claim-text">{claim.text}</p>
                   <p className="claim-meta">
                     <span className="claim-loc">{claim.location}</span>
-                    <span className={`claim-quad claim-quad-${quadrant}`}>
-                      {QUADRANT_META[quadrant].label}
-                    </span>
+                    {placeholder ? (
+                      <span className="claim-quad claim-quad-pending">待检索</span>
+                    ) : (
+                      <span className={`claim-quad claim-quad-${quadrant}`}>
+                        {QUADRANT_META[quadrant].label}
+                      </span>
+                    )}
                   </p>
                 </td>
 
                 <td className="col-score">
-                  <div className="score-bar">
-                    <div
-                      className="score-fill score-fill-overlap"
-                      style={{ width: `${claim.overlap}%` }}
-                    />
-                  </div>
-                  <span className="score-num">{claim.overlap}</span>
+                  {placeholder ? (
+                    <span className="score-pending">—</span>
+                  ) : (
+                    <>
+                      <div className="score-bar">
+                        <div
+                          className="score-fill score-fill-overlap"
+                          style={{ width: `${claim.overlap}%` }}
+                        />
+                      </div>
+                      <span className="score-num">{claim.overlap}</span>
+                    </>
+                  )}
                 </td>
 
                 <td className="col-score">
-                  <div className="score-bar">
-                    <div
-                      className="score-fill score-fill-def"
-                      style={{ width: `${claim.defensibility}%` }}
-                    />
-                  </div>
-                  <span className="score-num">{claim.defensibility}</span>
+                  {placeholder ? (
+                    <span className="score-pending">—</span>
+                  ) : (
+                    <>
+                      <div className="score-bar">
+                        <div
+                          className="score-fill score-fill-def"
+                          style={{ width: `${claim.defensibility}%` }}
+                        />
+                      </div>
+                      <span className="score-num">{claim.defensibility}</span>
+                    </>
+                  )}
                 </td>
               </tr>
             );

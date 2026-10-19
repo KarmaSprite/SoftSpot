@@ -5,21 +5,107 @@ import { useState } from "react";
 import SoftSpotMap from "@/components/SoftSpotMap";
 import ClaimTable from "@/components/ClaimTable";
 import QuestionList from "@/components/QuestionList";
-import { MOCK_RESULT } from "@/lib/mock";
-import type { AnalysisResult } from "@/lib/types";
+import type { AnalysisResult, Claim, Question } from "@/lib/types";
+
+/**
+ * /api/analyze 的响应体。
+ *
+ * 字段跟 app/api/analyze/route.ts 里 NextResponse.json({...}) 的返回一一对应。
+ * 为什么不从这里 import 类型：route.ts 是服务端文件，它 export 的类型
+ * 在客户端组件里 import 会把整个 route 模块拖进浏览器包。
+ * 前后端之间传的本来就是一段 JSON，客户端自己声明"我期待收到什么"更诚实。
+ */
+type AnalyzeResponse = {
+  claims: Claim[];
+  questions: Question[];
+  warnings: string[];
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    calls: number;
+  };
+  costYuan: number;
+  model: string;
+  scoresArePlaceholder: boolean;
+  elapsedMs: number;
+};
+
+/** 报告顶部那一行元信息。跟主张、问题本身无关，所以单独存一份。 */
+type Meta = {
+  elapsedMs: number;
+  costYuan: number;
+  totalTokens: number;
+  warnings: string[];
+  scoresArePlaceholder: boolean;
+};
 
 export default function Home() {
   const [outline, setOutline] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const count = outline.trim().length;
-  const canSubmit = count > 0;
+  const canSubmit = count > 0 && !loading;
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!canSubmit) return;
-    // 第 3b 步：先灌假数据，只为把界面画出来。
-    // 第 6 步起这里会换成 fetch("/api/analyze")。
-    setResult(MOCK_RESULT);
+
+    setLoading(true);
+    setError(null);
+    /**
+     * 开跑之前先把上一份报告清掉。
+     *
+     * 不清的话，用户贴了新提纲点按钮，会看到旧报告还挂在那儿，
+     * 分不清"这是新的还是旧的"。等 30 秒的过程中他会以为已经分析完了。
+     */
+    setResult(null);
+    setMeta(null);
+
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outline }),
+      });
+
+      /**
+       * 先读 body 再判断状态码。
+       *
+       * 为什么不是先判断 res.ok：服务端出错时也会返回一段 JSON，
+       * 里面带着人话错误说明（"还没配 key"、"提纲太短"之类）。
+       * 直接按状态码 throw 掉，就把这段说明扔了，
+       * 用户只会看到一个 "422 Unprocessable Entity"。
+       */
+      const data = (await res.json()) as AnalyzeResponse & { error?: string };
+
+      if (!res.ok) {
+        setError(data.error ?? `服务端返回了 ${res.status}，但没说是什么原因。`);
+        return;
+      }
+
+      setResult({ claims: data.claims, questions: data.questions });
+      setMeta({
+        elapsedMs: data.elapsedMs,
+        costYuan: data.costYuan,
+        totalTokens: data.usage.totalTokens,
+        warnings: data.warnings,
+        scoresArePlaceholder: data.scoresArePlaceholder,
+      });
+    } catch (e) {
+      /**
+       * 走到这里说明请求根本没发出去，或者响应不是 JSON。
+       * 最常见的原因是 dev server 那个窗口被关了 —— 所以文案里直接点出来。
+       */
+      const detail = e instanceof Error ? e.message : String(e);
+      setError(
+        `请求没发出去：${detail}\n检查一下跑 npm run dev 的那个窗口是不是还开着，以及终端里有没有报错。`,
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -61,10 +147,28 @@ export default function Home() {
             onClick={handleSubmit}
             disabled={!canSubmit}
           >
-            开始诊断
+            {loading ? "正在分析…" : "开始诊断"}
           </button>
         </div>
       </section>
+
+      {/* 分析中：告诉用户在等什么、要等多久，别让他以为卡死了 */}
+      {loading && (
+        <div className="alert alert-busy" role="status">
+          <span className="spinner" aria-hidden="true" />
+          <p className="alert-body">
+            正在读你的提纲：先抽出主张，再逐条生成质询问题。大概 30 秒，这个页面别关。
+          </p>
+        </div>
+      )}
+
+      {/* 出错：原文照搬，因为服务端给的错误话是能照着改的 */}
+      {error && (
+        <div className="alert alert-error" role="alert">
+          <strong className="alert-title">这一步没走通</strong>
+          <p className="alert-body">{error}</p>
+        </div>
+      )}
 
       <section className="next-steps">
         <h2>点下去之后会发生什么</h2>
@@ -97,6 +201,38 @@ export default function Home() {
             个问题。先看地图找最危险的那几条，再看明细和问题清单。
           </p>
 
+          {/* 元信息：花了多久、多少钱。用 dl 而不是几个 span，因为这是"名称-数值"对 */}
+          {meta && (
+            <dl className="report-meta">
+              <div>
+                <dt>耗时</dt>
+                <dd>{(meta.elapsedMs / 1000).toFixed(1)} 秒</dd>
+              </div>
+              <div>
+                <dt>花费</dt>
+                <dd>约 {meta.costYuan.toFixed(4)} 元</dd>
+              </div>
+              <div>
+                <dt>token</dt>
+                <dd>{meta.totalTokens.toLocaleString("zh-CN")}</dd>
+              </div>
+            </dl>
+          )}
+
+          {/* 警告不阻断结果，所以用黄色而不是红色，而且放在报告最上面 */}
+          {meta && meta.warnings.length > 0 && (
+            <div className="alert alert-warn">
+              <strong className="alert-title">
+                有 {meta.warnings.length} 处要你自己确认
+              </strong>
+              <ul className="alert-list">
+                {meta.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="report-head">
             <h3>软肋地图</h3>
             <p>
@@ -105,7 +241,15 @@ export default function Home() {
             </p>
           </div>
 
-          <SoftSpotMap claims={result.claims} />
+          {/*
+            placeholder：第 12 步接上检索之前，所有主张的分数都是 50。
+            50 正好在分界线上，九个点会全部叠在正中心同一个位置，
+            画出来像一个点，比不画更误导。所以这时候不画点，画说明。
+          */}
+          <SoftSpotMap
+            claims={result.claims}
+            placeholder={meta?.scoresArePlaceholder ?? false}
+          />
 
           <div className="report-head">
             <h3>主张明细</h3>
@@ -115,7 +259,10 @@ export default function Home() {
             </p>
           </div>
 
-          <ClaimTable claims={result.claims} />
+          <ClaimTable
+            claims={result.claims}
+            placeholder={meta?.scoresArePlaceholder ?? false}
+          />
 
           <div className="report-head">
             <h3>质询问题清单</h3>
@@ -128,7 +275,10 @@ export default function Home() {
           <QuestionList questions={result.questions} />
 
           <p className="report-footnote">
-            这份报告用的是假数据，第 6 步起会换成你的真实提纲。
+            主张和问题都是 DeepSeek 逐条读你提纲得出的。
+            {meta?.scoresArePlaceholder
+              ? "地图上的两个分数还是占位值，等接上 arXiv 和 Crossref 才会有真实分数。"
+              : ""}
           </p>
         </section>
       )}

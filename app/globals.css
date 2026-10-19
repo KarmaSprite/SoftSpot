@@ -121,6 +121,16 @@
   --shadow-soft: light-dark(rgba(16, 18, 24, 0.1), rgba(0, 0, 0, 0.5));
   --shadow-float: light-dark(rgba(16, 18, 24, 0.18), rgba(0, 0, 0, 0.6));
 
+  /*
+     提示条底色。
+     三种语气三档：等着的用中性灰，出错的用极淡的红，有警告的用极淡的黄。
+     都压到几乎看不出是"颜色"，只在你扫一眼时给出方向感 ——
+     提示条已经有一条 3px 的竖杠在喊了，底色再浓就变成两块色斑。
+  */
+  --alert-busy-bg: light-dark(#f4f5f7, #1e2228);
+  --alert-error-bg: light-dark(#fdf4f2, #241715);
+  --alert-warn-bg: light-dark(#fdf9ee, #201c12);
+
   /* 字号：六级跳着走。
      不要写 11 / 11.5 / 12 / 12.5 / 13 / 13.5 / 14 这种一路挤，
      挤在一起等于没有层级。 */
@@ -929,6 +939,17 @@ textarea {
 }
 
 /*
+   待检索：检索还没接上时的中性标签。
+   刻意用灰而不是四象限里的任何一种颜色 —— 一旦给它上色，
+   用户就会把它读成"这条已经判过了"，而它想说的是"还没判"。
+*/
+.claim-quad-pending {
+  background: var(--sunken);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/*
    分数条改成 3px 的细线，像下划线而不是进度条。
    满格的灰底进度条是仪表盘的样子，这里要的是表格里的一个注解。
 */
@@ -959,6 +980,19 @@ textarea {
   color: var(--muted);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+   占位分数显示一个破折号，不显示 50。
+   50 是"分界线"不是"结果"：照 50 画条会是一条半满的横线，
+   看起来像真算出来了一个中间值，而事实是还没查。
+   破折号在中文排版里就是"此处暂无"，不会撒谎。
+*/
+.score-pending {
+  display: block;
+  margin-top: 6px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
 }
 
 /* ---------- 10. 质询问题清单 ---------- */
@@ -1675,5 +1709,208 @@ textarea {
 
   .dbg-size-roomy {
     width: 280px;
+  }
+}
+
+/* ---------- 13. 加载与错误提示 ---------- */
+
+/*
+   三类提示条，语气不同：
+   - 分析中：中性底，只是告诉你"在等，别关页面"
+   - 出错：左侧一条砖红竖杠，因为这类消息要你动手改点什么
+   - 有警告：左侧一条土黄竖杠，结果能用，但有几处要你自己确认
+   竖杠用 3px 而不是把整圈边框染红：整圈染色在浅色主题下很像一个报错弹窗，
+   而这三类里有两种其实不算错误。
+*/
+
+.alert {
+  display: flex;
+  gap: 12px;
+  margin-top: var(--gap-lg);
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+}
+
+.alert-busy {
+  align-items: flex-start;
+  background: var(--alert-busy-bg);
+  border-color: var(--line-soft);
+}
+
+.alert-error {
+  flex-direction: column;
+  gap: 4px;
+  background: var(--alert-error-bg);
+  border-left: 3px solid var(--danger-solid);
+}
+
+.alert-warn {
+  flex-direction: column;
+  gap: 6px;
+  background: var(--alert-warn-bg);
+  border-left: 3px solid var(--warn);
+}
+
+.alert-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.alert-error .alert-title {
+  color: var(--danger);
+}
+
+/*
+   pre-line：错误文案里带换行（"第一句说是什么问题，第二句说去改哪儿"），
+   不写这条会把两句话挤成一行，读起来像一段废话。
+*/
+.alert-body {
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--ink-soft);
+  white-space: pre-line;
+}
+
+.alert-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+/* 警告条目用小圆点开头，缩进 12px，比 ul 默认的 40px 紧凑 */
+.alert-list li {
+  position: relative;
+  padding-left: 12px;
+}
+
+.alert-list li::before {
+  content: "";
+  position: absolute;
+  top: 0.62em;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+/*
+   转圈：16px 的环，只有上边是强调色。
+   减速而不是停掉 —— 停掉的转圈看起来像页面卡死了，
+   正好和它要表达的意思相反。
+*/
+.spinner {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+/*
+   报告元信息：耗时 / 花费 / token。
+   用 dl 而不是一排 span，因为这三样都是"名称 + 数值"。
+   数值用 tabular-nums，否则 0.0304 里的 0 和 1 宽度不同，
+   两次分析的数对不齐，看起来像排版坏了。
+*/
+.report-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-md) var(--gap-lg);
+  margin-top: var(--gap-md);
+  padding-top: var(--gap-md);
+  border-top: 1px solid var(--line-soft);
+}
+
+.report-meta > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.report-meta dt {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.report-meta dd {
+  font-size: var(--fs-sm);
+  font-weight: 550;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+   地图待检索态：盖在画布上，不画点。
+   为什么留着象限底色和四角标签：用户得先看懂这张图怎么读，
+   等分数算出来点散开之后，才知道该往哪个角看。
+   pointer-events: none 是为了不挡住将来可能加的交互，
+   这层只是说明文字，不该拦截鼠标。
+*/
+.map-pending {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap-lg);
+  text-align: center;
+  pointer-events: none;
+}
+
+.map-pending-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.map-pending-body {
+  max-width: 340px;
+  margin-top: 8px;
+  font-size: var(--fs-xs);
+  line-height: 1.75;
+  color: var(--muted);
+}
+
+/* ----- 窄屏 ----- */
+
+@media (max-width: 600px) {
+  .alert {
+    padding: 12px 13px;
+  }
+
+  .report-meta {
+    gap: var(--gap-sm) var(--gap-md);
+  }
+
+  .map-pending {
+    padding: var(--gap-md);
+  }
+
+  .map-pending-body {
+    font-size: 11px;
   }
 }
