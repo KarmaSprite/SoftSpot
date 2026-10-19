@@ -52,11 +52,15 @@ L3 组装：纯代码，不调模型，算四象限、拼报告
 
 - [ ] **第 5 步** `app/api/analyze/route.ts` 接 DeepSeek，只打印不解析
   - 验收：点按钮，服务端终端打印出模型返回的一大段文本
-  - 拆成三次提交做：
+  - 拆成四次提交做：
     - [x] 5a 只查 key 配没配（不花钱、不联网）
     - [ ] 5b 真调模型只打印（等 key）
     - [x] 5c 视觉打磨：换掉模板感、去掉装饰阴影、问题清单改文档式列表
       （插在 5b 前面做，因为不依赖 key，边等边做）
+    - [x] 5d 关掉 Next 自带的英文按钮，自己做一个中文调试面板
+      （原版按钮文案写死在 bundle 里没有中文配置，只能关；
+      自己做的这个能查 key 状态，后面 5b–8 步都用得上）
+    - [ ] 5e 深色模式 + 手动切换（自动 / 浅色 / 深色）
 - [ ] **第 6 步** `extractJson()` 兜底 + zod 校验
   - 验收：模型返回带 ```json 包裹时也能正确解析，格式不对时给出人话错误
 - [ ] **第 7 步** L1 抽取：提纲 → 主张数组
@@ -132,3 +136,4 @@ L3 组装：纯代码，不调模型，算四象限、拼报告
 - 2026-10-19 第 5a 步完成（第 5 步拆两半的前一半）。`app/api/health/route.ts` 只查 key 在不在，不调模型不花钱；`.env.example` 提交进库，`.env.local` 被 `.gitignore` 挡住（顺带给 `.env.example` 加了 `!` 例外）。卡点在于 `.env*` 这条规则会把 `.env.example` 一起忽略掉，必须显式写 `!.env.example` 才提交得上去。另注：`npx tsc --noEmit` 在装完 zod 后开始报"找不到 tsc"，改用 `.\node_modules\.bin\tsc` 直接调本地二进制。
 - 2026-10-19 第 5c 步完成（视觉打磨，插在 5b 前面做，因为不依赖 key）。改了三件事：字号从 9 级压到 6 级（12/13/15/17/21/30），原来 11 到 16 之间挤了 9 个字号，等于没分级；去掉面板和卡片上的所有装饰阴影，改用 1px 实线加留白分组，全站只留地图悬停提示框一个阴影，因为它是浮层必须和内容分开；质询问题清单从 8 个白盒子改成文档式列表，序号挪到左边当页边码、条目之间用细线分、危险条靠左边一道红杠。顺手修了两处：禁用按钮原来是浅灰底配白字，对比度约 1.6:1 基本看不清，改成浅灰底配中灰字；`app/layout.tsx` 里加载的 Geist 字体其实一次都没被用上（`--font-sans` 里根本没引用），这次接进 body。卡点在于 `--font-geist-sans` 是 next/font 挂在 `<body>` 的 className 上的，只有 body 及其子元素看得到，写成 `:root { --font-sans: var(--font-geist-sans), ... }` 会取不到值导致整个字体栈失效，必须把 `--font-sans` 定义在 body 上。
 - 2026-10-19 第 5c 步补一个坑：`.panel-hint` 原来是个 `<span>` 套在 `<label>` 里，`display: inline`，结果跟上一行的标签并排跑成一句话（「把你的开题提纲贴进来选题背景、研究问题……」）。原来模板里它是 `display: block`，我重写时把这条漏了。**样式重写时最容易丢的不是颜色，是这类默认值。**
+- 2026-10-19 第 5d 步完成（关掉英文按钮，自建调试面板）。`next.config.ts` 加 `devIndicators: false`；新建 `components/DebugPanel.tsx`，左下角一个中文按钮，点开显示运行模式 / API Key 状态 / 模型名 / 检测耗时，按钮上有状态点（灰=未检测、绿=正常、黄=有告警、红=连不上）。三个发现：一是那个英文按钮的文案写死在 Next.js 的 bundle 里，翻遍 `node_modules/next/dist/client` 没有任何 i18n 入口，只能留或关；二是 `devIndicators: false` 只关按钮不关错误浮层，实测故意 `throw new Error` 红色浮层照常弹出，第 6 步调 JSON 解析不会瞎；三是 `process.env.NODE_ENV === "production"` 这个判断在构建时就被替换成字面量，生产包里整个组件被摇掉，实测 `npm run build` 后产物里搜不到「调试面板」和 `debug-panel` 类名，不是靠 CSS 藏起来的。卡点在于 `npm run build` 会覆盖 `.next` 目录，把正在跑的 dev server 弄崩（报 `_buildManifest.js.tmp` 一堆 ENOENT），必须先停 dev 再 build，或者 build 完删掉 `.next` 重启。
