@@ -24,14 +24,14 @@ export default function Home() {
 
   return (
     <main className="shell">
+      {/*
+        页头没有图标方块。
+        「深色圆角方块里放一个汉字」这种写法换成任何产品名都成立，
+        说明它不传达信息，只是模板残留。这里用纯文字 + 一条细线。
+      */}
       <header className="masthead">
-        <div className="brand">
-          <span className="brand-mark">预</span>
-          <div className="brand-text">
-            <h1>预答辩</h1>
-            <p className="tagline">在你还能改的时候，告诉你哪儿会被问倒</p>
-          </div>
-        </div>
+        <h1>预答辩</h1>
+        <p className="tagline">在你还能改的时候，告诉你哪儿会被问倒</p>
       </header>
 
       <section className="panel">
@@ -86,8 +86,19 @@ export default function Home() {
 
       {result && (
         <section className="report">
+          {/*
+            报告区两级标题：
+            h2 是「这是一份报告」，h3 是报告里的三个板块。
+            以前三个板块都是 h2，和页面标题同级，屏幕阅读器读起来是平的。
+          */}
+          <h2 className="report-title">诊断报告</h2>
+          <p className="report-lede">
+            共抽出 {result.claims.length} 条主张、{result.questions.length}{" "}
+            个问题。先看地图找最危险的那几条，再看明细和问题清单。
+          </p>
+
           <div className="report-head">
-            <h2>软肋地图</h2>
+            <h3>软肋地图</h3>
             <p>
               横轴看「这个想法别人做过吗」，纵轴看「这条主张你答得上来吗」。
               落在右下角那几颗，就是最该改的。
@@ -96,19 +107,21 @@ export default function Home() {
 
           <SoftSpotMap claims={result.claims} />
 
-          <div className="report-head report-head-sub">
-            <h2>主张明细</h2>
+          <div className="report-head">
+            <h3>主张明细</h3>
             <p>
-              六条主张摊开看。横条越短越该注意：别人做过的那条越长，说明撞车的可能性越大。
+              把抽出来的主张摊开看。横条越长，说明别人做过的那部分越多，
+              撞车的可能性越大。
             </p>
           </div>
 
           <ClaimTable claims={result.claims} />
 
-          <div className="report-head report-head-sub">
-            <h2>质询问题清单</h2>
+          <div className="report-head">
+            <h3>质询问题清单</h3>
             <p>
-              按「你答不上来的概率」从高到低排。红边框那几条，是老师最可能当场追问的。
+              按「你答不上来的概率」从高到低排。左边有红杠那几条，
+              是老师最可能当场追问的。
             </p>
           </div>
 

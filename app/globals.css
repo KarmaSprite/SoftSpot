@@ -1,32 +1,51 @@
 /* ============================================================
    预答辩 · 全局样式
    全项目所有样式都写在这个文件里，不引 Tailwind。
-   约定：先定义变量，再写布局，再写组件，最后写打印。
+   组织顺序：变量 → 重置 → 骨架 → 各区块 → 窄屏。
+   改配色只改第 1 节，下面一律用变量，不许临时拍色值。
    ============================================================ */
 
 /* ---------- 1. 设计变量 ---------- */
 
 :root {
-  /* 颜色 */
-  --ink: #16181d;
-  --ink-soft: #3d424d;
-  --muted: #6b7280;
-  --faint: #9ca3af;
-  --line: #e4e5e8;
-  --line-soft: #eeeff1;
-  --bg: #f6f6f4;
+  /* 颜色：一套冷灰 + 一个强调色（墨蓝）。不要再混暖色进去。 */
+  --ink: #14161a;
+  --ink-soft: #3a3f47;
+  --muted: #545b64;
+  --faint: #666d76;
+  --line: #dfe1e5;
+  --line-soft: #eceef1;
+  --bg: #f7f8f9;
   --surface: #ffffff;
-  --accent: #2b5cd9;
-  --accent-dark: #1e46ab;
-  --accent-soft: #eaf0ff;
-  --danger: #cf4b38;
-  --warn: #b8860b;
-  --good: #2a8a5e;
 
-  /* 排版 */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --accent: #24479f;
+  --accent-dark: #1a3576;
+  --accent-soft: #eef2fb;
+
+  --danger: #a83a2c;
+  --warn: #7d6414;
+  --good: #1f6b46;
+
+  /* 四象限配色：底色极淡，圆点用饱和度高的那支。
+     背景负责分区，圆点负责被找到，两者分工不重叠。 */
+  --q-home: #1f6b46;
+  --q-home-bg: #f0f5f1;
+  --q-crowded: #6b7480;
+  --q-crowded-bg: #f1f2f4;
+  --q-foggy: #8a6a00;
+  --q-foggy-bg: #f7f4ec;
+  --q-weak: #a83a2c;
+  --q-weak-bg: #f8efed;
+
+  /* 字号：六级跳着走。
+     不要写 11 / 11.5 / 12 / 12.5 / 13 / 13.5 / 14 这种一路挤，
+     挤在一起等于没有层级。 */
+  --fs-xs: 12px; /* 标签、脚注、元信息 */
+  --fs-sm: 13px; /* 次要正文 */
+  --fs-base: 15px; /* 正文 */
+  --fs-md: 17px; /* 问题标题、小标题 */
+  --fs-lg: 21px; /* 区块标题 */
+  --fs-xl: 30px; /* 页面标题 */
 
   /* 间距 */
   --gap-xs: 6px;
@@ -35,12 +54,11 @@
   --gap-lg: 28px;
   --gap-xl: 44px;
 
-  /* 圆角与阴影 */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --shadow-sm: 0 1px 2px rgba(16, 18, 24, 0.06);
-  --shadow-md: 0 4px 16px rgba(16, 18, 24, 0.08);
+  /* 圆角：一套规则，只有三个值。
+     面板 10 / 输入框和按钮 8 / 徽章全圆。别处不许临时拍数。 */
+  --radius-panel: 10px;
+  --radius-control: 8px;
+  --radius-pill: 999px;
 }
 
 /* ---------- 2. 基础重置 ---------- */
@@ -57,11 +75,23 @@ body {
   overflow-x: hidden;
 }
 
+/*
+   字体变量写在 body 上，不写在 :root。
+   原因：--font-geist-sans 是 next/font 挂在 <body> 的 className 上的，
+   只有 body 及其子元素能看到它。写在 :root 上取不到，整个 font-family 会失效。
+   中文没有 Geist 字形，浏览器会自动往后面的 PingFang / 微软雅黑掉，这是对的。
+*/
 body {
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Source Han Sans SC", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+
   color: var(--ink);
   background: var(--bg);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: var(--fs-base);
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -88,78 +118,71 @@ textarea {
   color: inherit;
 }
 
+/* 键盘 Tab 走到哪里，必须看得见。鼠标点击不显示。 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ---------- 3. 页面骨架 ---------- */
 
 .shell {
   width: 100%;
-  max-width: 860px;
+  max-width: 820px;
   margin: 0 auto;
   padding: var(--gap-xl) var(--gap-md) 96px;
 }
 
 /* ---------- 4. 页头 ---------- */
 
+/*
+   没有图标方块。
+   一个深色圆角方块里放一个汉字，是模板感最重的写法：
+   换成任何一个产品名都成立，说明它没有传达任何信息。
+   这里用纯文字 + 一条细线，靠字号和字重立住。
+*/
 .masthead {
+  padding-bottom: var(--gap-md);
   margin-bottom: var(--gap-lg);
+  border-bottom: 1px solid var(--line);
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: var(--radius-md);
-  background: var(--ink);
-  color: #fff;
-  font-size: 22px;
+.masthead h1 {
+  font-size: var(--fs-xl);
   font-weight: 600;
-  letter-spacing: 0;
-  flex-shrink: 0;
-}
-
-.brand-text h1 {
-  font-size: 25px;
-  font-weight: 650;
-  letter-spacing: 0.5px;
-  line-height: 1.25;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
 }
 
 .tagline {
+  margin-top: 5px;
   color: var(--muted);
-  font-size: 13.5px;
-  letter-spacing: 0.2px;
+  font-size: var(--fs-sm);
 }
 
 /* ---------- 5. 输入面板 ---------- */
 
 .panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
   padding: var(--gap-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
 }
 
 .panel-label {
   display: block;
-  font-size: 16px;
+  font-size: var(--fs-md);
   font-weight: 600;
-  margin-bottom: var(--gap-sm);
+  line-height: 1.4;
 }
 
+/* display: block 不能省。省了它会跟上一行的标签并排跑，变成一句话。 */
 .panel-hint {
   display: block;
-  font-size: 13px;
-  font-weight: 400;
+  margin-top: 4px;
   color: var(--muted);
-  margin-top: 2px;
+  font-size: var(--fs-sm);
+  font-weight: 400;
 }
 
 .outline-input {
@@ -167,28 +190,27 @@ textarea {
   width: 100%;
   min-height: 240px;
   max-height: 60vh;
+  margin-top: var(--gap-md);
   padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: #fcfcfb;
+  border-radius: var(--radius-control);
+  background: #fbfbfc;
   color: var(--ink);
-  font-size: 14.5px;
-  line-height: 1.75;
+  font-size: var(--fs-sm);
+  line-height: 1.8;
   resize: vertical;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease,
-    background-color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .outline-input::placeholder {
   color: var(--faint);
-  line-height: 1.75;
+  line-height: 1.8;
 }
 
 .outline-input:focus {
   border-color: var(--accent);
   background: var(--surface);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .panel-foot {
@@ -202,26 +224,26 @@ textarea {
 
 .counter {
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
 }
 
 .counter strong {
-  color: var(--ink);
-  font-weight: 600;
-  font-size: 15px;
   margin: 0 1px;
+  color: var(--ink);
+  font-size: var(--fs-base);
+  font-weight: 600;
 }
 
 .submit-btn {
   padding: 10px 26px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   background: var(--accent);
   color: #fff;
-  font-size: 15px;
+  font-size: var(--fs-base);
   font-weight: 550;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
@@ -233,9 +255,14 @@ textarea {
   transform: translateY(1px);
 }
 
+/*
+   禁用态原来写的是浅灰底 + 白字，对比度约 1.6:1，基本看不清。
+   这里改成浅灰底 + 中灰字：一眼能看出是灰的，字又读得出来。
+   禁用控件不强制满足 4.5:1，但能读总比不能读好。
+*/
 .submit-btn:disabled {
-  background: #d6d8dd;
-  color: #fff;
+  background: #e6e8eb;
+  color: var(--faint);
   cursor: not-allowed;
 }
 
@@ -246,18 +273,18 @@ textarea {
 }
 
 .next-steps h2 {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--muted);
-  letter-spacing: 1.2px;
   margin-bottom: var(--gap-md);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.8px;
 }
 
 .next-steps ol {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--gap-sm);
+  gap: 12px;
 }
 
 .next-steps li {
@@ -265,25 +292,25 @@ textarea {
   align-items: flex-start;
   gap: 12px;
   color: var(--ink-soft);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: 1.65;
 }
 
 .step-no {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 22px;
   height: 22px;
-  border-radius: 50%;
+  margin-top: 1px;
   border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
   background: var(--surface);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-  margin-top: 1px;
 }
 
 /* ---------- 7. 报告区 ---------- */
@@ -294,24 +321,44 @@ textarea {
   border-top: 1px solid var(--line);
 }
 
-.report-head h2 {
-  font-size: 20px;
-  font-weight: 650;
-  letter-spacing: 0.3px;
-  margin-bottom: var(--gap-xs);
+.report-title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.report-lede {
+  margin-top: 4px;
+  max-width: 620px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.report-head {
+  margin-top: var(--gap-xl);
+}
+
+.report-head h3 {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.1px;
 }
 
 .report-head p {
+  margin-top: 3px;
+  max-width: 620px;
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   line-height: 1.7;
-  max-width: 640px;
 }
 
 .report-footnote {
-  margin-top: var(--gap-md);
+  margin-top: var(--gap-xl);
+  padding-top: var(--gap-md);
+  border-top: 1px solid var(--line-soft);
   color: var(--faint);
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
 }
 
 /* ---------- 8. 软肋地图（手写散点图） ---------- */
@@ -323,7 +370,7 @@ textarea {
 */
 
 .map-block {
-  margin-top: var(--gap-lg);
+  margin-top: var(--gap-md);
 }
 
 .map {
@@ -334,7 +381,7 @@ textarea {
   aspect-ratio: 1 / 1;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   /* 不用 overflow: hidden，否则边缘那几个点的提示框会被裁掉 */
 }
 
@@ -348,49 +395,49 @@ textarea {
 .map-quad-tl {
   top: 0;
   left: 0;
-  border-top-left-radius: var(--radius-lg);
+  border-top-left-radius: var(--radius-panel);
 }
 
 .map-quad-tr {
   top: 0;
   right: 0;
-  border-top-right-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-panel);
 }
 
 .map-quad-bl {
   bottom: 0;
   left: 0;
-  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-panel);
 }
 
 .map-quad-br {
   bottom: 0;
   right: 0;
-  border-bottom-right-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-panel);
 }
 
-/* 象限配色：绿=主场，灰蓝=有人做过，黄=没想清楚，红=最该改 */
+/* 象限配色：绿=主场，灰蓝=有人做过，土黄=没想清楚，砖红=最该改 */
 .map-bg-home {
-  background: #e8f5ee;
+  background: var(--q-home-bg);
 }
 
 .map-bg-crowded {
-  background: #eef1f6;
+  background: var(--q-crowded-bg);
 }
 
 .map-bg-foggy {
-  background: #fdf7e6;
+  background: var(--q-foggy-bg);
 }
 
 .map-bg-weak {
-  background: #fdecea;
+  background: var(--q-weak-bg);
 }
 
 /* 分界线 */
 .map-axis {
   position: absolute;
-  background: #d8dade;
   z-index: 2;
+  background: #d3d6db;
 }
 
 .map-axis-h {
@@ -412,10 +459,10 @@ textarea {
   position: absolute;
   z-index: 3;
   padding: 3px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.3px;
   pointer-events: none;
   white-space: nowrap;
 }
@@ -441,26 +488,26 @@ textarea {
 }
 
 .map-tag-home {
-  color: #1d6b47;
+  color: var(--q-home);
 }
 
 .map-tag-crowded {
-  color: #4a5468;
+  color: var(--q-crowded);
 }
 
 .map-tag-foggy {
-  color: #8a6a00;
+  color: var(--q-foggy);
 }
 
 .map-tag-weak {
-  color: #a8341f;
+  color: var(--q-weak);
 }
 
 /* 每个点的容器：定位靠 inline style 的 left / top */
 .spot {
   position: absolute;
-  transform: translate(-50%, -50%);
   z-index: 5;
+  transform: translate(-50%, -50%);
 }
 
 .spot:hover {
@@ -474,57 +521,59 @@ textarea {
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 50%;
-  border: 2.5px solid var(--surface);
-  box-shadow: 0 1px 4px rgba(16, 18, 24, 0.28);
+  border: 2px solid var(--surface);
+  border-radius: var(--radius-pill);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   cursor: default;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition: transform 0.12s ease;
 }
 
 .spot:hover .spot-dot {
-  transform: scale(1.15);
-  box-shadow: 0 2px 8px rgba(16, 18, 24, 0.34);
+  transform: scale(1.16);
 }
 
 .spot-dot-home {
-  background: var(--good);
+  background: var(--q-home);
 }
 
 .spot-dot-crowded {
-  background: #7d8798;
+  background: var(--q-crowded);
 }
 
 .spot-dot-foggy {
-  background: #d9a406;
+  background: var(--q-foggy);
 }
 
 .spot-dot-weak {
-  background: var(--danger);
+  background: var(--q-weak);
 }
 
-/* 悬停提示：纯 CSS 控制显隐，不写 JS 状态 */
+/*
+   悬停提示：纯 CSS 控制显隐，不写 JS 状态。
+   全站只保留这一个阴影，因为它是浮层，必须和底下的内容分开。
+   其它地方（面板、卡片、表格）一律不用阴影，靠 1px 线和留白分组。
+*/
 .spot-tip {
   position: absolute;
   bottom: 30px;
   left: 50%;
-  transform: translateX(-50%);
+  z-index: 40;
   width: 250px;
   max-width: 70vw;
   padding: 10px 12px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   background: var(--ink);
   color: #f2f3f5;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 6px 20px rgba(16, 18, 24, 0.22);
   opacity: 0;
   visibility: hidden;
+  transform: translateX(-50%);
   transition: opacity 0.14s ease, visibility 0.14s ease;
   pointer-events: none;
-  z-index: 40;
 }
 
 .spot:hover .spot-tip {
@@ -546,9 +595,9 @@ textarea {
 }
 
 .spot-tip-text {
-  font-size: 12.5px;
-  line-height: 1.6;
   color: #f2f3f5;
+  font-size: var(--fs-xs);
+  line-height: 1.65;
 }
 
 .spot-tip-meta {
@@ -559,48 +608,48 @@ textarea {
   margin-top: 7px;
   padding-top: 7px;
   border-top: 1px solid rgba(255, 255, 255, 0.16);
-  font-size: 11.5px;
   color: #b9bdc6;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
 .spot-tip-quad {
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 600;
 }
 
 .spot-tip-quad-home {
-  background: rgba(42, 138, 94, 0.28);
+  background: rgba(31, 107, 70, 0.32);
   color: #8fe0b8;
 }
 
 .spot-tip-quad-crowded {
-  background: rgba(125, 135, 152, 0.3);
+  background: rgba(107, 116, 128, 0.34);
   color: #cdd3dd;
 }
 
 .spot-tip-quad-foggy {
-  background: rgba(217, 164, 6, 0.26);
+  background: rgba(138, 106, 0, 0.32);
   color: #f0cf72;
 }
 
 .spot-tip-quad-weak {
-  background: rgba(207, 75, 56, 0.28);
+  background: rgba(168, 58, 44, 0.32);
   color: #f4a99d;
 }
 
 /* 轴说明与图例 */
 .map-axis-note {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: var(--gap-sm);
+  gap: var(--gap-xs) var(--gap-sm);
   max-width: 620px;
   margin: var(--gap-sm) auto 0;
   color: var(--faint);
-  font-size: 12px;
-  flex-wrap: wrap;
+  font-size: var(--fs-xs);
 }
 
 .map-axis-note b {
@@ -616,8 +665,8 @@ textarea {
   max-width: 620px;
   margin: var(--gap-md) auto 0;
   list-style: none;
-  font-size: 12.5px;
   color: var(--ink-soft);
+  font-size: var(--fs-xs);
 }
 
 .map-legend li {
@@ -627,66 +676,53 @@ textarea {
 }
 
 .legend-dot {
+  flex-shrink: 0;
   width: 9px;
   height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
+  border-radius: var(--radius-pill);
 }
 
 .legend-dot-home {
-  background: var(--good);
+  background: var(--q-home);
 }
 
 .legend-dot-crowded {
-  background: #7d8798;
+  background: var(--q-crowded);
 }
 
 .legend-dot-foggy {
-  background: #d9a406;
+  background: var(--q-foggy);
 }
 
 .legend-dot-weak {
-  background: var(--danger);
+  background: var(--q-weak);
 }
 
 /* ---------- 9. 主张表 ---------- */
 
-.report-head-sub {
-  margin-top: var(--gap-xl);
-}
-
 .table-wrap {
-  margin-top: var(--gap-lg);
+  margin-top: var(--gap-md);
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
 .claim-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
 }
 
 .claim-table thead th {
-  padding: 11px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
-  background: #fafaf9;
+  background: #fbfbfc;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.6px;
   text-align: left;
   white-space: nowrap;
-}
-
-.claim-table thead th:first-child {
-  border-top-left-radius: var(--radius-lg);
-}
-
-.claim-table thead th:last-child {
-  border-top-right-radius: var(--radius-lg);
 }
 
 .claim-table tbody td {
@@ -700,7 +736,7 @@ textarea {
 }
 
 .claim-table tbody tr:hover {
-  background: #fbfbfa;
+  background: #fcfcfd;
 }
 
 .col-no {
@@ -723,15 +759,15 @@ textarea {
 .badge {
   display: inline-block;
   padding: 2px 9px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .badge-problem {
-  background: #fdecea;
-  color: #a8341f;
+  background: var(--q-weak-bg);
+  color: var(--q-weak);
 }
 
 .badge-method {
@@ -740,8 +776,8 @@ textarea {
 }
 
 .badge-expectation {
-  background: #e8f5ee;
-  color: #1d6b47;
+  background: var(--q-home-bg);
+  color: var(--q-home);
 }
 
 /* 主张正文 */
@@ -756,8 +792,8 @@ textarea {
   align-items: center;
   gap: 4px 10px;
   margin-top: 6px;
-  font-size: 11.5px;
   color: var(--faint);
+  font-size: var(--fs-xs);
 }
 
 .claim-loc {
@@ -766,128 +802,145 @@ textarea {
 
 .claim-quad {
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-weight: 600;
 }
 
 .claim-quad-home {
-  background: #e8f5ee;
-  color: #1d6b47;
+  background: var(--q-home-bg);
+  color: var(--q-home);
 }
 
 .claim-quad-crowded {
-  background: #eef1f6;
-  color: #4a5468;
+  background: var(--q-crowded-bg);
+  color: var(--q-crowded);
 }
 
 .claim-quad-foggy {
-  background: #fdf7e6;
-  color: #8a6a00;
+  background: var(--q-foggy-bg);
+  color: var(--q-foggy);
 }
 
 .claim-quad-weak {
-  background: #fdecea;
-  color: #a8341f;
+  background: var(--q-weak-bg);
+  color: var(--q-weak);
 }
 
-/* 分数条 */
+/*
+   分数条改成 3px 的细线，像下划线而不是进度条。
+   满格的灰底进度条是仪表盘的样子，这里要的是表格里的一个注解。
+*/
 .score-bar {
-  height: 6px;
-  border-radius: 999px;
-  background: #eeeff1;
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: #e9ebee;
   overflow: hidden;
 }
 
 .score-fill {
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transition: width 0.3s ease;
 }
 
 .score-fill-overlap {
-  background: #8d94a3;
+  background: var(--q-crowded);
 }
 
 .score-fill-def {
-  background: var(--good);
+  background: var(--q-home);
 }
 
 .score-num {
   display: block;
-  margin-top: 5px;
+  margin-top: 6px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
 
 /* ---------- 10. 质询问题清单 ---------- */
 
+/*
+   这里原来是 8 个白盒子 + 阴影 + 左侧色条，一屏滚下去像 8 个同样重的方块，
+   眼睛没有落点。改成文档式列表：
+   序号放到左边当页边码，卡片之间用细线分，危险条目靠左边一道红杠标记。
+   信息一样，但读起来是一条线，不是一个一个盒子。
+*/
+
 .question-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-md);
-  margin-top: var(--gap-lg);
+  margin-top: var(--gap-md);
   list-style: none;
+  border-top: 1px solid var(--line);
 }
 
 .question-card {
-  padding: 18px 20px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  position: relative;
+  padding: 20px 0 20px 44px;
+  border-bottom: 1px solid var(--line-soft);
 }
 
-.question-card.is-danger {
-  border-left-color: var(--danger);
+/* 危险条：平时透明，is-danger 时变红。占位不占位由同一段控制，避免布局跳动 */
+.question-card::before {
+  content: "";
+  position: absolute;
+  top: 21px;
+  bottom: 21px;
+  left: 0;
+  width: 2px;
+  background: transparent;
+}
+
+.question-card.is-danger::before {
+  background: var(--danger);
 }
 
 .question-head {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
 }
 
 .question-no {
+  position: absolute;
+  top: 18px;
+  left: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 50%;
-  background: #f2f3f5;
+  border-radius: var(--radius-pill);
+  background: #f1f2f4;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-  margin-top: 1px;
 }
 
 .question-card.is-danger .question-no {
-  background: #fdecea;
-  color: #a8341f;
+  background: var(--q-weak-bg);
+  color: var(--q-weak);
 }
 
 .question-text {
   flex: 1;
   color: var(--ink);
-  font-size: 15px;
+  font-size: var(--fs-md);
   font-weight: 600;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .risk-badge {
   flex-shrink: 0;
+  margin-top: 3px;
   padding: 1px 9px;
-  border-radius: 999px;
-  background: #f2f3f5;
+  border-radius: var(--radius-pill);
+  background: #f1f2f4;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  margin-top: 2px;
 }
 
 .risk-badge.risk-high {
@@ -895,27 +948,24 @@ textarea {
   color: #fff;
 }
 
-/* 为什么问这个 */
+/* 为什么问这个：做成引用块，不用带底色的盒子 */
 .question-why {
   margin-top: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: #fafaf9;
-  border: 1px solid var(--line-soft);
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--line);
 }
 
 .why-label {
   display: block;
-  color: var(--faint);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.8px;
   margin-bottom: 3px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: 600;
 }
 
 .question-why p {
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.7;
 }
 
@@ -926,11 +976,10 @@ textarea {
 
 .checklist-label {
   display: block;
-  color: var(--faint);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.8px;
   margin-bottom: 5px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: 600;
 }
 
 .checklist ul {
@@ -945,7 +994,7 @@ textarea {
   align-items: flex-start;
   gap: 8px;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.65;
 }
 
@@ -954,7 +1003,7 @@ textarea {
   color: var(--good);
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 /* ---------- 11. 窄屏 ---------- */
@@ -962,6 +1011,10 @@ textarea {
 @media (max-width: 600px) {
   .shell {
     padding: var(--gap-lg) var(--gap-sm) 64px;
+  }
+
+  .masthead h1 {
+    font-size: 26px;
   }
 
   .panel {
@@ -972,18 +1025,14 @@ textarea {
     min-height: 200px;
   }
 
-  .panel-foot {
-    justify-content: space-between;
-  }
-
   .submit-btn {
     flex: 1 1 auto;
     padding: 11px 18px;
   }
 
   .map-tag {
-    font-size: 11px;
     padding: 2px 6px;
+    font-size: 11px;
   }
 
   .map-tag-tl,
@@ -1040,9 +1089,8 @@ textarea {
     margin-bottom: var(--gap-sm);
     padding: 14px;
     border: 1px solid var(--line);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-panel);
     background: var(--surface);
-    box-shadow: var(--shadow-sm);
   }
 
   .claim-table tbody td {
@@ -1071,7 +1119,7 @@ textarea {
     flex-shrink: 0;
     width: 62px;
     color: var(--faint);
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
   }
 
   /* 用倒数序号：一行里最后两个 td 一定是两个分数列。
@@ -1089,16 +1137,28 @@ textarea {
   }
 
   .claim-table .score-num {
-    margin-top: 0;
     width: 28px;
+    margin-top: 0;
     text-align: right;
   }
 
   .question-card {
-    padding: 15px 16px;
+    padding: 16px 0 16px 36px;
+  }
+
+  .question-card::before {
+    top: 17px;
+    bottom: 17px;
+  }
+
+  .question-no {
+    top: 14px;
+    left: 8px;
+    width: 20px;
+    height: 20px;
   }
 
   .question-text {
-    font-size: 14px;
+    font-size: 15px;
   }
 }

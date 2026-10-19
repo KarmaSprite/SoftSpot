@@ -92,13 +92,17 @@ export default function SoftSpotMap({ claims }: Props) {
         })}
       </div>
 
-      {/* 轴说明 */}
+      {/*
+        轴说明。原先是「纵轴 下 答不上来 ｜ 答得上来 上」，
+        中文顺着箭头念不通，读的人要停一下才反应过来。
+        改成「名称 + 两端各是什么」的写法，不需要读方向。
+      */}
       <div className="map-axis-note">
         <span>
-          <b>横轴</b> ← 想法新 ｜ 别人做过 →
+          <b>横轴 · 别人做过</b> 0 全新 ｜ 100 撞车
         </span>
         <span>
-          <b>纵轴</b> 下 答不上来 ｜ 答得上来 上
+          <b>纵轴 · 答得上来</b> 0 没底 ｜ 100 很稳
         </span>
       </div>
 
