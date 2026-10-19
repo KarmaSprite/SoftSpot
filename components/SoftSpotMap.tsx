@@ -25,6 +25,83 @@ const CORNERS: { quadrant: Quadrant; pos: "tl" | "tr" | "bl" | "br" }[] = [
   { quadrant: "weak", pos: "br" },
 ];
 
+/**
+ * 画布留白：点不能贴在图的最外圈。
+ *
+ * 分数量到 0 或 100 时，点会正好压在边框上 —— 圆点有 20px 直径，
+ * 一半在框外被切掉，看起来像图坏了。留 3.5% 的边，极端值也完整可见。
+ * 只影响显示位置，不影响 tooltip 里的真实分数。
+ */
+const PLOT_INSET = 3.5;
+
+/** 两个点离得比这个近，就认为叠在一起了（单位：百分点）。 */
+const MIN_GAP = 7;
+
+/** 象限分界线（跟 lib/quadrant.ts 的 QUADRANT_THRESHOLD 一致）。 */
+const MID = 50;
+
+/** 推开时离分界线至少留这么远，免得贴着线看起来像越界了。 */
+const BOUNDARY_MARGIN = 1.5;
+
+/**
+ * 把挨得太近的点推开。
+ *
+ * 为什么需要：两条主张分数接近时（比如 70/6 和 68/6），
+ * 两个圆点会精确重叠，编号「1」「3」挤成一团，用户只能看到一个点，
+ * 会以为系统漏了一条主张 —— 而"少了一条"和"那条跟别人一样"是两件事。
+ *
+ * 做法：按顺序摆，每个点如果撞上已经摆好的点，就按固定角度往外挪一点，
+ * 挪到一个不撞的位置为止。角度表是写死的，同一份数据每次画出来都一样，
+ * 不会出现刷新一次点就换个地方的情况。
+ *
+ * **推的时候不许越过象限分界线**：这个点属于哪个象限是算出来的（看分数），
+ * 如果为了躲重叠把它推到线另一边，它就会压在另一个象限的底色上 ——
+ * 颜色和结论自相矛盾，比两个点叠在一起更让人糊涂。
+ * 所以横向、纵向都夹在原来那一侧。
+ */
+const NUDGE_ANGLES = [-35, 35, -70, 70, -110, 110, -145, 145, 180];
+
+function spreadPoints(points: { x: number; y: number }[]): { x: number; y: number }[] {
+  const placed: { x: number; y: number }[] = [];
+
+  for (const point of points) {
+    // 先夹进画布，再判断要不要推开 —— 分数 0 和 100 也要留出边距
+    let x = clampToPlot(point.x);
+    let y = clampToPlot(point.y);
+
+    for (const angle of NUDGE_ANGLES) {
+      const taken = placed.some((other) => Math.hypot(other.x - x, other.y - y) < MIN_GAP);
+      if (!taken) break;
+
+      const rad = (angle * Math.PI) / 180;
+      x = keepSide(point.x + Math.cos(rad) * MIN_GAP, point.x);
+      y = keepSide(point.y + Math.sin(rad) * MIN_GAP, point.y);
+    }
+
+    placed.push({ x, y });
+  }
+
+  return placed;
+}
+
+/**
+ * 把推开的坐标夹在「原来那一侧的象限里」。
+ *
+ * 原来在 50 右边（overlap 高）就还是留在右边，左边同理。
+ * 正好等于 50 的点不夹 —— 它本来就压在线上，推哪边都不算改变结论。
+ */
+function keepSide(value: number, original: number): number {
+  const clamped = clampToPlot(value);
+
+  if (original > MID) return Math.max(MID + BOUNDARY_MARGIN, clamped);
+  if (original < MID) return Math.min(MID - BOUNDARY_MARGIN, clamped);
+  return clamped;
+}
+
+function clampToPlot(value: number): number {
+  return Math.min(100 - PLOT_INSET, Math.max(PLOT_INSET, value));
+}
+
 type Props = {
   claims: Claim[];
   /**
@@ -41,6 +118,16 @@ type Props = {
 
 export default function SoftSpotMap({ claims, placeholder = false }: Props) {
   const showDots = !placeholder;
+
+  /*
+     先把每条主张的原始位置算出来，再统一推开重叠的点。
+     两件事分开做：位置是数据，推开是显示，混在一起以后就没法单独验证坐标对不对。
+  */
+  const rawPositions = claims.map((claim) => ({
+    x: claim.overlap,
+    y: 100 - claim.defensibility,
+  }));
+  const positions = spreadPoints(rawPositions);
 
   return (
     <div className="map-block">
@@ -87,9 +174,10 @@ export default function SoftSpotMap({ claims, placeholder = false }: Props) {
         {showDots &&
           claims.map((claim, index) => {
             const quadrant = getClaimQuadrant(claim);
+            const point = positions[index];
             const tipSide = [
-              claim.overlap > 62 ? "tip-left" : "",
-              claim.defensibility > 62 ? "tip-down" : "",
+              point.x > 62 ? "tip-left" : "",
+              point.y < 38 ? "tip-down" : "",
             ]
               .filter(Boolean)
               .join(" ");
@@ -99,8 +187,8 @@ export default function SoftSpotMap({ claims, placeholder = false }: Props) {
                 key={claim.id}
                 className="spot"
                 style={{
-                  left: `${claim.overlap}%`,
-                  top: `${100 - claim.defensibility}%`,
+                  left: `${point.x}%`,
+                  top: `${point.y}%`,
                 }}
               >
                 <span className={`spot-dot spot-dot-${quadrant}`}>
