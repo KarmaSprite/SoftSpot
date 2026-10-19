@@ -1,13 +1,54 @@
+/* ============================================================
+   预答辩 · 全局样式
+   全项目所有样式都写在这个文件里，不引 Tailwind。
+   约定：先定义变量，再写布局，再写组件，最后写打印。
+   ============================================================ */
+
+/* ---------- 1. 设计变量 ---------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 颜色 */
+  --ink: #16181d;
+  --ink-soft: #3d424d;
+  --muted: #6b7280;
+  --faint: #9ca3af;
+  --line: #e4e5e8;
+  --line-soft: #eeeff1;
+  --bg: #f6f6f4;
+  --surface: #ffffff;
+  --accent: #2b5cd9;
+  --accent-dark: #1e46ab;
+  --accent-soft: #eaf0ff;
+  --danger: #cf4b38;
+  --warn: #b8860b;
+  --good: #2a8a5e;
+
+  /* 排版 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* 间距 */
+  --gap-xs: 6px;
+  --gap-sm: 10px;
+  --gap-md: 18px;
+  --gap-lg: 28px;
+  --gap-xl: 44px;
+
+  /* 圆角与阴影 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(16, 18, 24, 0.06);
+  --shadow-md: 0 4px 16px rgba(16, 18, 24, 0.08);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ---------- 2. 基础重置 ---------- */
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
 html,
@@ -17,26 +58,255 @@ body {
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
 a {
-  color: inherit;
+  color: var(--accent);
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* ---------- 3. 页面骨架 ---------- */
+
+.shell {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: var(--gap-xl) var(--gap-md) 96px;
+}
+
+/* ---------- 4. 页头 ---------- */
+
+.masthead {
+  margin-bottom: var(--gap-lg);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-md);
+  background: var(--ink);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+.brand-text h1 {
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: 0.5px;
+  line-height: 1.25;
+}
+
+.tagline {
+  color: var(--muted);
+  font-size: 13.5px;
+  letter-spacing: 0.2px;
+}
+
+/* ---------- 5. 输入面板 ---------- */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--gap-lg);
+}
+
+.panel-label {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: var(--gap-sm);
+}
+
+.panel-hint {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.outline-input {
+  display: block;
+  width: 100%;
+  min-height: 240px;
+  max-height: 60vh;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fcfcfb;
+  color: var(--ink);
+  font-size: 14.5px;
+  line-height: 1.75;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.outline-input::placeholder {
+  color: var(--faint);
+  line-height: 1.75;
+}
+
+.outline-input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  margin-top: var(--gap-md);
+  flex-wrap: wrap;
+}
+
+.counter {
+  color: var(--muted);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.counter strong {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 15px;
+  margin: 0 1px;
+}
+
+.submit-btn {
+  padding: 10px 26px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 550;
+  letter-spacing: 1px;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.submit-btn:disabled {
+  background: #d6d8dd;
+  color: #fff;
+  cursor: not-allowed;
+}
+
+/* ---------- 6. 步骤说明 ---------- */
+
+.next-steps {
+  margin-top: var(--gap-xl);
+}
+
+.next-steps h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 1.2px;
+  margin-bottom: var(--gap-md);
+}
+
+.next-steps ol {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.next-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ---------- 7. 窄屏 ---------- */
+
+@media (max-width: 600px) {
+  .shell {
+    padding: var(--gap-lg) var(--gap-sm) 64px;
+  }
+
+  .panel {
+    padding: var(--gap-md);
+  }
+
+  .outline-input {
+    min-height: 200px;
+  }
+
+  .panel-foot {
+    justify-content: space-between;
+  }
+
+  .submit-btn {
+    flex: 1 1 auto;
+    padding: 11px 18px;
   }
 }
