@@ -12,6 +12,7 @@ import { SITE } from "@/lib/config";
 import { parseManualRefs } from "@/lib/manual";
 import { FILL_OUTLINE_EVENT } from "@/lib/samples";
 import { INSTANT_SAMPLES, LOAD_INSTANT_EVENT } from "@/lib/samples-instant";
+import { collapseWarnings } from "@/lib/warnings";
 import type { AnalysisResult, Claim, Question } from "@/lib/types";
 
 /**
@@ -201,7 +202,7 @@ export default function Home() {
           但摊到屏幕上要跟真接口一样先合一次，
           否则同一件事在两处显示成两种样子（真跑是 1 行，录像 6 行）。
         */
-        warnings: payload.warnings,
+        warnings: collapseWarnings(payload.warnings),
         scoresArePlaceholder: payload.scoresArePlaceholder,
         blindClaimIds: payload.blindClaimIds,
         manualRefCount: payload.manualRefCount,

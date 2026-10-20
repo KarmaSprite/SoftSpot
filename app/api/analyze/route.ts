@@ -35,6 +35,7 @@ import { parseManualRefs } from "@/lib/manual";
 import { SITE } from "@/lib/config";
 import { defensibilityFromRisk } from "@/lib/similarity";
 import { AnalysisResultSchema, formatIssues } from "@/lib/schema";
+import { collapseWarnings } from "@/lib/warnings";
 import type { Claim, Question } from "@/lib/types";
 
 /* ---------------------------------------------------------------
@@ -346,7 +347,7 @@ export async function POST(request: Request) {
      * 小问题（比如「你粘的第 3 行太短」）会被淹掉。
      * 合并规则和理由写在 lib/warnings.ts。
      */
-    warnings,
+    warnings: collapseWarnings(warnings),
     usage,
     /** 估算花费（元）。只是估算，不含缓存折扣，会比真实账单略高一点。 */
     costYuan: estimateCost(usage),

@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "check": "node scripts/check-schema.mjs && node scripts/check-parse.mjs && node scripts/check-extract.mjs && node scripts/check-question.mjs && node scripts/check-evidence.mjs && node scripts/check-score.mjs",
+    "check": "node scripts/check-schema.mjs && node scripts/check-parse.mjs && node scripts/check-extract.mjs && node scripts/check-question.mjs && node scripts/check-evidence.mjs && node scripts/check-score.mjs && node scripts/check-warnings.mjs",
     "check:arxiv": "node scripts/check-arxiv.mjs",
     "check:crossref": "node scripts/check-crossref.mjs",
     "check:retrieval": "node scripts/check-retrieval.mjs",
@@ -14,6 +14,7 @@
     "check:search": "node scripts/check-search.mjs",
     "check:evidence": "node scripts/check-evidence.mjs",
     "check:score": "node scripts/check-score.mjs",
+    "check:warnings": "node scripts/check-warnings.mjs",
     "check:websearch": "node scripts/check-websearch.mjs",
     "check:manual": "node scripts/check-manual.mjs",
     "check:nearest": "node scripts/check-nearest.mjs"
