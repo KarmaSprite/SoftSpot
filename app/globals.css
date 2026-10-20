@@ -2182,3 +2182,156 @@ textarea {
     font-size: 11px;
   }
 }
+
+/* ---------- 14. 你的主场 ---------- */
+
+/*
+  为什么这块用绿色系，而报告里其他板块都是中性灰：
+  整份报告只有这一块是「好消息」。用象限里 home 那一套墨绿，
+  用户一眼就知道它跟地图左上角那个角是同一件事，不用再解释。
+  但也只到这里 —— 不加大色块、不加图标、不加动效，
+  好消息喊太响会显得在讨好用户，反而不可信。
+*/
+.home-ground {
+  margin-top: var(--gap-lg);
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--q-home);
+  border-radius: var(--radius-panel);
+  background: var(--q-home-bg);
+}
+
+.home-ground-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-sm);
+}
+
+.home-ground-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--q-home-ink);
+  letter-spacing: -0.1px;
+}
+
+/*
+  条数用等宽数字。这块只有一个数字，但用户会拿它跟地图上的点数对，
+  数字本身必须稳，不能因为字体比例在两种主题下宽度不同。
+*/
+.home-ground-count {
+  color: var(--q-home-ink);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.home-ground-lede {
+  margin-top: 8px;
+  max-width: 620px;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.75;
+}
+
+.home-ground-lede b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/*
+  没有主场时的整块退色。
+  绿色在这份报告里是「有好消息」的信号 —— 这块一条都没有的时候，
+  继续用绿底绿标题会显得系统在自我安慰：明明什么都没找到，
+  却还在用报喜的颜色。所以整块退回中性灰，只保留位置（用户知道
+  该来这儿看），不保留情绪。
+*/
+.home-ground.is-empty {
+  border-left-color: var(--line);
+  background: var(--surface);
+}
+
+.home-ground.is-empty .home-ground-title {
+  color: var(--muted);
+}
+
+.home-ground-empty {
+  color: var(--muted);
+}
+
+.home-list {
+  margin-top: 14px;
+  list-style: none;
+}
+
+.home-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.home-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.home-no {
+  flex-shrink: 0;
+  width: 20px;
+  color: var(--q-home-ink);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.home-body {
+  min-width: 0;
+}
+
+.home-text {
+  color: var(--ink);
+  font-size: var(--fs-base);
+  line-height: 1.7;
+}
+
+.home-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-xs) var(--gap-sm);
+  margin-top: 6px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+.home-loc {
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.home-score {
+  font-variant-numeric: tabular-nums;
+}
+
+.home-score b {
+  margin-left: 3px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .home-ground {
+    padding: 14px 14px 14px 15px;
+  }
+
+  .home-text {
+    font-size: var(--fs-sm);
+  }
+
+  .home-meta {
+    gap: 4px var(--gap-xs);
+  }
+}

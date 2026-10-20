@@ -5,6 +5,7 @@ import { useState } from "react";
 import SoftSpotMap from "@/components/SoftSpotMap";
 import ClaimTable from "@/components/ClaimTable";
 import QuestionList from "@/components/QuestionList";
+import HomeGround from "@/components/HomeGround";
 import type { AnalysisResult, Claim, Question } from "@/lib/types";
 
 /**
@@ -212,7 +213,7 @@ export default function Home() {
           <h2 className="report-title">诊断报告</h2>
           <p className="report-lede">
             共抽出 {result.claims.length} 条主张、{result.questions.length}{" "}
-            个问题。先看地图找最危险的那几条，再看明细和问题清单。
+            个问题。先看哪些是你站得住的地方，再看哪几条最危险。
           </p>
 
           {/* 元信息：花了多久、多少钱。用 dl 而不是几个 span，因为这是"名称-数值"对 */}
@@ -246,6 +247,17 @@ export default function Home() {
               </ul>
             </div>
           )}
+
+          {/*
+            主场放在最上面，而且放在地图上面。
+            滚动顺序就是阅读顺序：先看到「你有两条站得住」，
+            再看「哪三条最危险」，他才有力气看下去。
+          */}
+          <HomeGround
+            claims={result.claims}
+            blindClaimIds={meta?.blindClaimIds ?? []}
+            placeholder={meta?.scoresArePlaceholder ?? false}
+          />
 
           <div className="report-head">
             <h3>软肋地图</h3>
