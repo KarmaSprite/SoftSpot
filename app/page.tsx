@@ -273,7 +273,7 @@ export default function Home() {
             className="outline-input"
             value={outline}
             onChange={(e) => setOutline(e.target.value)}
-            placeholder="例：本研究针对高职院校学生英语口语练习机会不足的问题，拟采用大语言模型构建一个随时可用的对话陪练系统，通过语音识别与生成技术实现实时纠错……"
+            placeholder="例：本研究针对本科教育学专业「课程与教学论」课程中混合式教学停留于形式叠加的问题，拟采用准实验设计，检验学习投入在教学设计与学业表现之间的中介效应……"
             spellCheck={false}
           />
 

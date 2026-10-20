@@ -1997,6 +1997,45 @@ textarea {
   line-height: 1.4;
 }
 
+/*
+   示例按钮左边那个质量分徽章。
+   为什么用 flex 而不是把分数塞进文字里：塞进文字的话，
+   「教育学·混合式 90」和「文学·网络文学 40」两个按钮的分数位置对不齐，
+   一眼扫过去看不出高低。左对齐一个固定宽度的格子，分数就成一列了。
+*/
+.dbg-action-scored {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.dbg-action-quality {
+  flex: 0 0 22px;
+  color: var(--faint);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/*
+   分数越高颜色越实。四档：90 用强调色，60 用正文色，40 和 20 用弱色。
+   为什么不做四档颜色（红黄绿）：这四个分数标的是「开题写得多完整」，
+   不是「好/坏」的判断 —— 40 分那份不是"错"，只是"还没写清楚"。
+   用红绿灯会让用户以为系统在给他打分，而它其实只是在描述现状。
+*/
+.dbg-action-q90 .dbg-action-quality {
+  color: var(--accent-ink);
+}
+
+.dbg-action-q60 .dbg-action-quality {
+  color: var(--ink-soft);
+}
+
+.dbg-action-q40 .dbg-action-quality,
+.dbg-action-q20 .dbg-action-quality {
+  color: var(--faint);
+}
+
 /* ----- 窄屏 ----- */
 
 @media (max-width: 600px) {
