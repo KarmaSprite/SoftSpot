@@ -100,7 +100,7 @@ export default function HomeGround({
       aria-labelledby="home-ground-title"
     >
       <div className="home-ground-head">
-        <h3 className="home-ground-title" id="home-ground-title">
+        <h3 className="home-ground-title block-title" id="home-ground-title">
           你的主场
         </h3>
         {home.length > 0 && (

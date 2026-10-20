@@ -374,33 +374,68 @@ export default function Home() {
         读屏软件默认就会念成「可折叠」。手写一个折叠面板要补的就是这几样。
       */}
       {split && (
-        <div className="result-bar no-print">
-          <details className="outline-brief">
+        <div className="result-bar">
+          {/*
+            这一条现在是结果页唯一的吸顶条，上下两行：
+            上面一行是「诊断报告」和三个动作，下面一行是折起来的提纲摘要。
+
+            为什么报告标题从右栏搬到了这里：
+            sticky 只能在它的父元素内部滑。标题原来住在右栏那个 700px 高的盒子里，
+            滚过 700px 就被父元素带着一起走了 —— 实测滚到 1200px 时它已经在视口上方 360px。
+            而「一直卡在顶上」要求父元素有整页那么高，整页那么高的东西
+            只能放在两栏外面。所以标题上来，右栏从导语开始。
+
+            为什么提纲摘要也在这一条里、而不是单独一条：
+            两条吸顶栏叠在一起要吃掉一百多像素，而且它们本来就是同一件事 ——
+            「你现在看的是哪份报告」。合成一条之后只吃一份高度。
+          */}
+          <div className="result-bar-head">
+            <h2 className="block-title">诊断报告</h2>
+
+            {/*
+              三个动作。
+              第一行是「存成 PDF」「重置」，第二行是「重新编辑」。
+
+              为什么「重新编辑」单独一行：它跟前两个不是一类事 ——
+              前两个是对这份报告做事（带走 / 丢掉），
+              它是离开这份报告回去改提纲。混在一行里三个等宽的按钮，
+              用户看不出哪个会让眼前的东西消失。
+            */}
+            <div className="report-tools no-print">
+              <div className="report-tools-row">
+                <button
+                  type="button"
+                  className="result-btn is-primary"
+                  onClick={() => window.print()}
+                >
+                  存成 PDF
+                </button>
+                <button
+                  type="button"
+                  className="result-btn is-danger"
+                  onClick={() => setResetOpen(true)}
+                >
+                  重置
+                </button>
+              </div>
+              <div className="report-tools-row">
+                <button
+                  type="button"
+                  className="result-btn"
+                  onClick={handleReedit}
+                >
+                  重新编辑
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <details className="outline-brief no-print">
             <summary>
               提纲摘要 · 共 {count} 字
             </summary>
             <p>{outline}</p>
           </details>
-
-          <div className="result-actions">
-            <button type="button" className="result-btn" onClick={handleReedit}>
-              重新编辑
-            </button>
-            <button
-              type="button"
-              className="result-btn"
-              onClick={() => window.print()}
-            >
-              存成 PDF
-            </button>
-            <button
-              type="button"
-              className="result-btn is-danger"
-              onClick={() => setResetOpen(true)}
-            >
-              重置
-            </button>
-          </div>
         </div>
       )}
 
@@ -529,14 +564,14 @@ export default function Home() {
               以前板块都是 h2，和页面标题同级，屏幕阅读器读起来是平的。
             */}
             {/*
-              这里原来有一个「存成 PDF」按钮，现在挪到页面顶部的 result-bar 里了。
-              为什么不留着：同一个动作在同一个屏幕上出现两次，
-              用户会以为它们是两件事（比如一个存摘要、一个存全文），
-              于是两个都点一遍，然后发现一样 —— 这种疑惑没有任何收益。
+              标题行和三个动作在第 24b 步搬到了结果页顶部那条吸顶栏里
+              （见上面的 .result-bar）。这里从导语直接开始。
+
+              为什么搬：sticky 只在父元素内部有效，而这一块的父元素
+              就是右栏那个跟地图一样高的盒子（实测 700px）。
+              标题钉在里面最多撑 700px 就跟着盒子走了。
+              想让「诊断报告」一直卡在顶上，它必须住在两栏外面。
             */}
-            <div className="report-top">
-              <h2 className="report-title">诊断报告</h2>
-            </div>
             <p className="report-lede">
               共抽出 {result.claims.length} 条主张、{result.questions.length}{" "}
               个问题。先看哪些是你站得住的地方，再看哪几条最危险。
@@ -633,7 +668,7 @@ export default function Home() {
         {result && (
           <div className="workbench-map">
             <div className="report-head">
-              <h3>软肋地图</h3>
+              <h3 className="block-title">软肋地图</h3>
               <p>
                 横轴看「这个想法别人做过吗」，纵轴看「这条主张你答得上来吗」。
                 落在右下角那几颗，就是最该改的。
@@ -661,7 +696,7 @@ export default function Home() {
         {result && (
           <div className="workbench-wide">
             <div className="report-head">
-              <h3>主张明细</h3>
+              <h3 className="block-title">主张明细</h3>
               <p>
                 把抽出来的主张摊开看。横条越长，说明别人做过的那部分越多，
                 撞车的可能性越大。
@@ -679,7 +714,7 @@ export default function Home() {
         {result && (
           <div className="workbench-wide">
             <div className="report-head">
-              <h3>质询问题清单</h3>
+              <h3 className="block-title">质询问题清单</h3>
               <p>
                 按「你答不上来的概率」从高到低排。左边有红杠那几条，
                 是老师最可能当场追问的。

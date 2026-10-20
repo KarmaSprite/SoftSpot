@@ -165,6 +165,14 @@
   --radius-panel: 10px;
   --radius-control: 8px;
   --radius-pill: 999px;
+
+  /*
+     第 24b 步删掉了 --sticky-offset（原来是 54px）。
+     它存在的理由是「报告标题行要停在提纲摘要条下面」——
+     现在两者合成了一条吸顶栏，标题就在栏里，不存在谁让谁的问题。
+     留一个没人用的变量比删掉更危险：以后有人看见它，
+     会以为还有第二个吸顶元素需要错位。
+  */
 }
 
 /*
@@ -463,7 +471,19 @@ textarea {
   border-top: 1px solid var(--line);
 }
 
-.report-title {
+/*
+   板块标题：报告里所有「一块内容的开头」共用这一个类。
+   「诊断报告」「软肋地图」「主张明细」「质询问题清单」「你的主场」
+   全部挂 .block-title，字号字重只在这里定义一次。
+
+   为什么不各写各的：第 23 步之前它们是 21 / 17 / 17 / 17 三种大小，
+   同一个页面里五个同级标题长得不一样，读起来像漏改了。
+   用一个类之后，想调大小只改这一处 —— 改一处就全对齐，改不歪。
+
+   标签仍然分开：诊断报告是 h2（整份报告），板块是 h3（报告里的一块）。
+   视觉一样、层级不一样，读屏软件才不会把它们念成平级。
+*/
+.block-title {
   font-size: var(--fs-lg);
   font-weight: 600;
   letter-spacing: -0.2px;
@@ -499,8 +519,11 @@ textarea {
   margin-top: var(--gap-xl);
 }
 
+/*
+   板块标题的字号不在这里写，统一由 .block-title 管。
+   这里只管「标题和它下面那句说明之间」的关系。
+*/
 .report-head h3 {
-  font-size: var(--fs-md);
   font-weight: 600;
   letter-spacing: -0.1px;
 }
@@ -2348,7 +2371,7 @@ textarea {
 }
 
 .home-ground-title {
-  font-size: var(--fs-md);
+  /* 字号跟其他板块标题一起由 .block-title 定，这里只管颜色 */
   font-weight: 600;
   color: var(--q-home-ink);
   letter-spacing: -0.1px;
@@ -2635,25 +2658,11 @@ textarea {
     padding-top: 0;
     border-top: none;
     /*
-       右栏钉住。
-       实测左栏（输入面板 + 地图）高 1057px，右栏只有 453px ——
-       右边下面空出 600px 白，看起来像内容没加载完。
-       与其把右栏硬拉长（拉长就是往卡片里灌水），不如让它跟着滚：
-       往下看地图的时候，结论一直停在右上角，两栏各干各的事。
-       高度 453 < 一屏 1000，钉住不会出现「钉住的东西比屏幕还高」那种尴尬。
+       打印时绝不能 sticky。纸上没有滚动，吸顶元素会在分页那一刻
+       被画到每一页的同一个位置，压住正文。
+       这条规则第 21 步就吃过一次亏（实测 getComputedStyle 里还是 sticky）。
     */
-    position: sticky;
-    top: var(--gap-md);
-    align-self: start;
-    /*
-       钉住的东西比屏幕还高，就等于把下半截钉到屏幕外面去 ——
-       用户往下滚，它不动；滚到底，那半截还是看不见。
-       所以给它一个「不超过一屏」的上限，超了就在自己内部滚。
-       正常情况（7 条主张、2 条主场）报告只有 450-600px，碰不到这条上限；
-       只有警告很多、主场很多那种极端情况才会出现内部滚动条。
-    */
-    max-height: calc(100vh - 2 * var(--gap-md));
-    overflow-y: auto;
+    position: static;
   }
 
   .masthead {
@@ -2661,8 +2670,12 @@ textarea {
     padding-bottom: 10px;
   }
 
-  /* 报告标题下面压一条线，看起来像一份文档而不是一张截屏 */
-  .report-title {
+  /*
+     报告标题下面压一条线，看起来像一份文档而不是一张截屏。
+      第 24b 步标题搬进了顶部吸顶栏（.result-bar-head），
+      纸上那条栏的边框由 .result-bar 自己管，这里只给标题压线。
+  */
+  .result-bar-head > .block-title {
     padding-bottom: 8px;
     border-bottom: 1px solid var(--line);
   }
@@ -2734,7 +2747,7 @@ textarea {
   }
 
   /* 分页：标题不许孤零零留在页底 */
-  .report-title,
+  .result-bar-head > .block-title,
   .report-head,
   .home-ground-head {
     break-after: avoid;
@@ -2978,25 +2991,30 @@ textarea {
     padding-top: 0;
     border-top: none;
     /*
-       右栏钉住。
-       实测左栏（输入面板 + 地图）高 1057px，右栏只有 453px ——
-       右边下面空出 600px 白，看起来像内容没加载完。
-       与其把右栏硬拉长（拉长就是往卡片里灌水），不如让它跟着滚：
-       往下看地图的时候，结论一直停在右上角，两栏各干各的事。
-       高度 453 < 一屏 1000，钉住不会出现「钉住的东西比屏幕还高」那种尴尬。
+       第 24b 步：右栏整块不钉住，标题行已经搬到两栏外面的吸顶栏里
+       （见第 18 节的 .result-bar）。
+
+       原来整块 .report 写 sticky + max-height + overflow-y: auto，三个毛病：
+         1. 它吸在 top: 18px，而顶部摘要条收起时就有 53px 高 ——
+            实测重叠 35px，报告第一行字被压在条子底下；
+         2. 它给自己开了一个内部滚动区：滚轮在右栏里滚的是报告，
+            在左栏外面滚的是整页。同一个滚轮两种行为，
+            读起来像「两块内容在互相追」，这就是用户说的「div 之间重叠」；
+         3. 内部滚动条很窄，鼠标不悬在右栏上根本滚不动它。
+
+       改成 static 之后整页只有一个滚动条，从上读到下。
+       想随时够到「存成 PDF / 重置」，靠的是顶部那条吸顶栏。
     */
-    position: sticky;
-    top: var(--gap-md);
-    align-self: start;
+    position: static;
     /*
-       钉住的东西比屏幕还高，就等于把下半截钉到屏幕外面去 ——
-       用户往下滚，它不动；滚到底，那半截还是看不见。
-       所以给它一个「不超过一屏」的上限，超了就在自己内部滚。
-       正常情况（7 条主张、2 条主场）报告只有 450-600px，碰不到这条上限；
-       只有警告很多、主场很多那种极端情况才会出现内部滚动条。
+        align-self: stretch —— 让右栏盒子跟左栏一样高。
+        sticky 已经搬走了，这一条留着的理由是视觉上的：
+        start 会让右栏盒子的底边停在内容结束处（比地图矮一截），
+        两块并排的栏高度差太多，读起来像右边那块没写完。
+        实测右栏内容 700px、地图 700px，本来就差不多高；
+        用户以后加长结论时，stretch 保证它仍然跟地图对齐。
     */
-    max-height: calc(100vh - 2 * var(--gap-md));
-    overflow-y: auto;
+    align-self: stretch;
   }
 
   /*
@@ -3009,6 +3027,18 @@ textarea {
   .workbench.is-split > .workbench-map {
     grid-column: 1;
     grid-row: 1;
+  }
+
+  /*
+     第 24b 步：两栏第一行要对齐。
+     报告标题搬去吸顶条之后，右栏第一行正文是导语（y=303），
+     而左栏第一行是「软肋地图」这个板块标题，它带着 .report-head 的
+     44px 上边距，被推到 y=343 —— 两块并排却差 40px，
+     看起来像左边那块没对齐（实测过）。
+     两栏第一行的第一个板块标题不要上边距。
+  */
+  .workbench.is-split > .workbench-map > .report-head:first-child {
+    margin-top: 0;
   }
 
   /* 通栏：从第一列一直跨到最后一列，有几块就自动往下排几行 */
@@ -3119,19 +3149,46 @@ textarea {
   }
 }
 
-/* ----- 报告标题行 ----- */
+/* ----- 报告标题行（住在顶部吸顶栏里） ----- */
 
 /*
-   第 23 步之后这一行只剩标题。
-   保留 flex 是因为打印时下面还有一条线要跟标题对齐，
-   而且将来若要在这一行补别的东西，flex 比 block 更好接。
+    这一行两个身份：报告的第一行，和滚动时钉在顶部的那条工具条。
+    左边「诊断报告」，右边两行按钮（第一行 存成 PDF / 重置，第二行 重新编辑）。
+
+    第 24b 步之前这一行住在右栏的 .report 里。为什么搬出来：
+    sticky 只能在它的父元素内部滑。右栏那个盒子跟左边地图一样高（实测 700px），
+    标题钉在里面最多撑 700px 就被父元素带着走了 ——
+    实测滚到 1200px 时它已经在视口上方 360px，用户读第三个问题时早就看不见了。
+    想「一直卡在顶上」，它的父元素必须有整页那么高；整页那么高的东西
+    只能放在两栏外面，所以它搬到了 .result-bar 里。
+
+    这里只负责「这一行内部怎么排」，钉在哪儿由 .result-bar 负责。
 */
-.report-top {
+.result-bar-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--gap-md);
   flex-wrap: wrap;
+}
+
+/*
+   右边两行按钮。
+   align-items: flex-end 让两行都靠右对齐 ——
+   「重新编辑」比上面两个短，靠左对齐的话它会跟「存成 PDF」的左边缘对齐，
+   看起来像三个按钮里有一个掉队了。
+*/
+.report-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.report-tools-row {
+  display: flex;
+  gap: var(--gap-sm);
 }
 
 /*
@@ -3145,7 +3202,7 @@ textarea {
     display: block;
   }
 
-  .report-top {
+  .result-bar-head {
     align-items: center;
   }
 }
@@ -3164,13 +3221,14 @@ textarea {
 
   /*
      打印时 sticky 必须按回 static。
-     屏幕上那个 sticky 是为了「滚地图的时候结论跟着走」，
+     屏幕上那个 sticky 是为了「滚到报告深处还能点存成 PDF」，
      纸上没有滚动，浏览器会把 sticky 元素按它当前的吸附位置画出来 ——
-     实测打印媒体下 .report 的 position 还是 sticky，
-     这种元素在分页时可能被画到页首压在别的内容上面。
+     实测打印媒体下 position 还是 sticky 的时候，
+     这种元素在分页时会被画到页首压在别的内容上面。
      纸上的位置只该由文档流决定。
   */
-  .report {
+  .report,
+  .result-bar {
     position: static;
   }
 
@@ -3178,13 +3236,13 @@ textarea {
     max-width: none;
   }
 
-  .report-top {
-    align-items: flex-end;
-  }
-
-  /* 打印时这一行只剩标题，标题下面那条线要贴回去 */
-  .report-title {
-    flex: 1;
+  /*
+     纸上标题行只剩标题（按钮和提纲摘要都是 .no-print，已经被藏掉），
+     所以要把它压回一行，不再占两行按钮让出来的高度。
+  */
+  .result-bar-head {
+    display: block;
+    padding-bottom: 6px;
   }
 }
 
@@ -3196,9 +3254,10 @@ textarea {
    顶上就没有任何东西告诉他「我贴的是哪份提纲」。
    一份报告五六屏长，读到第三个问题已经想不起开头写的什么了。
 
-   所以顶上换成一条固定条：左边是折起来的提纲（想看就展开），
-   右边是三个动作（重新编辑 / 存成 PDF / 重置）。
-   固定条本身极薄 —— 只有一行文字高，收起状态不占地方。
+   第 24b 步之后这一条是结果页唯一的吸顶条，上下两行：
+   上面「诊断报告」+ 三个动作，下面折起来的提纲摘要。
+   两件事本来就是一件事 ——「你现在看的是哪份报告」，
+   分成两条吸顶栏要吃掉两倍高度。
 
    三个动作必须干三件不同的事：
    - 重新编辑：回输入页，提纲留着（改几个字重跑）
@@ -3213,14 +3272,21 @@ textarea {
      sticky 贴着窗口顶。
      为什么不是 fixed：fixed 会脱离文档流，下面的内容会往上顶，
      第一条主张会藏在这条栏底下。sticky 占位，不遮挡任何东西。
+
+     为什么它自己就是吸顶条、而不是再套一层：
+     这一条挂在 <main> 下面、两栏外面，父元素有整页那么高，
+     所以它能一路钉到页面底部。这是「诊断报告一直卡在顶上」的前提。
   */
   position: sticky;
   top: 0;
   z-index: 20;
+  /*
+     纵向排：标题行一行，提纲摘要一行。
+     不能再用 space-between —— 那会让摘要贴到底部去。
+  */
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gap-md);
+  flex-direction: column;
+  gap: var(--gap-xs);
   margin-bottom: var(--gap-lg);
   padding: var(--gap-sm) 0;
   /*
@@ -3230,6 +3296,17 @@ textarea {
   */
   background: var(--bg);
   border-bottom: 1px solid var(--line);
+}
+
+/*
+   摘要展开时整条让位。
+   展开后这一条能长到 356px 高（一屏的三成），
+   还钉在顶上就等于把半屏永久切走，正文一个字都看不到。
+   改成 static 让它跟着页面滚走 —— 用户点开是想看提纲，
+   那一刻他不需要吸顶条。
+*/
+.result-bar:has(.outline-brief[open]) {
+  position: static;
 }
 
 /*
@@ -3246,9 +3323,16 @@ textarea {
   display: inline-block;
   cursor: pointer;
   color: var(--muted);
-  font-size: var(--fs-xs);
+  /*
+     第 24b 步：12px → 13px → 15px，字重 500。
+     用户的原话是「提纲摘要几个字放大一点」，第一次只提到 13px 不够。
+     15px 是正文档 —— 这一行现在是吸顶条的第二行，
+     它跟正文一样常驻在视野里，就该跟正文一样大。
+  */
+  font-size: var(--fs-base);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  line-height: 1.7;
+  line-height: 1.6;
   /*
      去掉 Chrome 默认的那个三角。
      它默认是 0.5em 的黑色实心三角，在这个字号下看起来像个小污点。
@@ -3297,24 +3381,24 @@ textarea {
   white-space: pre-wrap;
 }
 
-.result-actions {
-  display: flex;
-  flex-shrink: 0;
-  gap: var(--gap-sm);
-}
-
 /*
-   三个按钮都是描边，不用实心。
+   三个按钮都是描边 + 透明底。
    实心在这个页面里只有一个含义：主操作（开始诊断）。
    这三个都是「报告出来之后才可能想做」的次要动作，
    用实心会把视线从报告正文上抢走。
+
+   为什么底色写 transparent 而不是 var(--surface)：
+   这一行是吸顶的，吸顶元素压在正文上，实心底会在滚动时糊成一块白板。
+   透明底 + 描边，底下滚过去的字从按钮缝隙里透出来 ——
+   反而更容易看清「这是一层浮在上面的工具」。
+   唯一的例外是 hover：那一刻必须实心，否则鼠标移上去看不出按到了哪个。
 */
 .result-btn {
-  padding: 6px 14px;
+  padding: 5px 13px;
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--ink);
+  background: transparent;
+  color: var(--ink-soft);
   font-size: var(--fs-sm);
   font-weight: 500;
   white-space: nowrap;
@@ -3322,6 +3406,15 @@ textarea {
     border-color 0.15s ease,
     background-color 0.15s ease,
     color 0.15s ease;
+}
+
+/*
+   主操作「存成 PDF」：强调色描边 + 强调色字，底仍然透明。
+   它比另外两个重一档，因为「把报告带走」是这个页面最常被点的动作。
+*/
+.result-btn.is-primary {
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .result-btn:hover {
@@ -3342,7 +3435,7 @@ textarea {
 */
 .result-btn.is-danger:hover {
   border-color: var(--q-weak-ink);
-  background: transparent;
+  background: var(--q-weak-bg);
   color: var(--q-weak-ink);
 }
 
@@ -3460,19 +3553,28 @@ textarea {
 }
 
 /*
-   窄屏：三个按钮排到第二行。
-   390px 下「重新编辑 / 存成 PDF / 重置」横着排会挤成一坨，
-   而且摘要条也得有地方放。分成两行，按钮行右对齐。
+   窄屏：标题和按钮改成上下两段，并且整条不再吸顶。
+
+   为什么窄屏放弃吸顶：
+   390×844 的屏幕上这一条量出来是 166px 高 —— 标题 35 + 两行按钮 66
+   + 间距 + 提纲摘要 24 + 上下 padding。166px 占掉屏幕的 20%，
+   而且是永久占着，正文只剩不到七成。桌面上 118px 占 12% 还能忍，
+   手机上这个比例就变成「为了一条工具栏牺牲阅读」。
+   手机上滚回顶部一次的成本，比每屏少读两行低得多。
 */
 @media screen and (max-width: 600px) {
   .result-bar {
+    position: static;
+  }
+
+  .result-bar-head {
     flex-direction: column;
     align-items: stretch;
     gap: var(--gap-sm);
   }
 
-  .result-actions {
-    justify-content: flex-end;
+  .report-tools {
+    align-items: flex-end;
   }
 
   .result-btn {
@@ -3481,14 +3583,24 @@ textarea {
 }
 
 /*
-   打印：结果条整条不进纸。
-   报告本身已经验证过是 4 页、每页都有实质内容，
-   加一条 sticky 栏进去会重新洗一遍分页，而它带的信息
-   （提纲摘要 + 三个按钮）在纸上没有意义 —— 纸上没有「重新编辑」这回事。
+   打印：这一条不能再整条藏掉了。
+   第 24b 步把「诊断报告」这个标题搬进了这一条 ——
+   整条藏掉的话，纸上第一页就从导语开始，没有标题，
+   读的人不知道这是一份什么文档。
+   所以纸上只藏它里面的工具和摘要（两者都挂了 .no-print），
+   标题留下，边框也留下（纸上靠它把页头和正文分开）。
+
+   注意 position: static 必须写在这一节里，不能只写在第 17 节那个
+   @media print 块里 —— 那一段在文件里排在这一节的 .result-bar 之前，
+   同样的选择器权重，后面的 position: sticky 会把前面的 static 盖掉。
+   实测：只在第 17 节写 static 时，打印媒体下 position 仍然是 sticky。
 */
 @media print {
   .result-bar {
-    display: none !important;
+    position: static;
+    margin-bottom: var(--gap-md);
+    padding: 0;
+    border-bottom: none;
   }
 }
 
