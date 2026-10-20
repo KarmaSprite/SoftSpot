@@ -477,6 +477,21 @@ textarea {
   line-height: 1.7;
 }
 
+/*
+   补充说明：比正文轻一档，前面加一道短竖线。
+   用来接在板块说明后面讲一句"但这一块不受影响"这类澄清，
+   不是新的一段正文，所以不跟 <p> 抢同一个样式。
+*/
+.report-note {
+  margin-top: 8px;
+  max-width: 620px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+}
+
 .report-footnote {
   margin-top: var(--gap-xl);
   padding-top: var(--gap-md);
@@ -1125,6 +1140,18 @@ textarea {
 }
 
 /*
+   不知道：查重没做成，横轴那一项对这条主张是空的。
+   跟「待检索」同一套灰，但文案不同 ——
+   「待检索」说的是整个功能还没接上，「不知道」说的是这一次没查成。
+   两者都不是结论，所以都不许上四象限的颜色。
+*/
+.claim-quad-blind {
+  background: var(--sunken);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/*
    分数条改成 3px 的细线，像下划线而不是进度条。
    满格的灰底进度条是仪表盘的样子，这里要的是表格里的一个注解。
 */
@@ -1168,6 +1195,27 @@ textarea {
   margin-top: 6px;
   color: var(--faint);
   font-size: var(--fs-xs);
+}
+
+/*
+   查重没做成的那一格。
+   破折号跟「待检索」用同一套写法，底下多一行小字说清楚为什么是空的。
+   为什么不画一条 0% 的空条：空条看起来像"真算出来是 0 分"，
+   而 0 分在这张表里恰好是最强的结论（没人做过）—— 那是在说谎。
+*/
+.score-unknown {
+  display: block;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.score-unknown-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 /* ---------- 10. 质询问题清单 ---------- */
@@ -1485,6 +1533,22 @@ textarea {
     width: 28px;
     margin-top: 0;
     text-align: right;
+  }
+
+  /*
+    窄屏卡片式布局里 .col-score 是 flex 容器，
+    破折号和小字会变成两个并排的 flex 项。
+    让它们靠在一起（gap 从 10 收到 6），
+    否则「—」和「这次没查成」中间空出一大块，看起来像两列。
+  */
+  .claim-table .score-unknown,
+  .claim-table .score-pending {
+    margin-top: 0;
+  }
+
+  .claim-table .score-unknown + .score-unknown-note {
+    margin-top: 0;
+    margin-left: -4px;
   }
 
   .question-card {

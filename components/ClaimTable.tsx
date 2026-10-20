@@ -33,9 +33,26 @@ type Props = {
    * 宁可显示"还不知道"，也不能显示一个自己没算过的结论。
    */
   placeholder?: boolean;
+  /**
+   * 查重没做成的主张。
+   *
+   * 这些主张的 overlap 是 0（lib/overlap.ts 在一个源都没答话时就这么返回），
+   * 但 0 分在表格里读起来是"没人做过"——那是在说谎。
+   * 所以「别人做过」那一列换成破折号加一句"这次没查成"。
+   *
+   * 「答得上来」那一列照常显示：这个分是数提纲里的数字和方法词算出来的，
+   * 跟检索成没成功无关，是真分数。藏起来才是浪费。
+   */
+  blindClaimIds?: string[];
 };
 
-export default function ClaimTable({ claims, placeholder = false }: Props) {
+export default function ClaimTable({
+  claims,
+  placeholder = false,
+  blindClaimIds = [],
+}: Props) {
+  const blindSet = new Set(blindClaimIds);
+
   return (
     <div className="table-wrap">
       <table className="claim-table">
@@ -51,9 +68,15 @@ export default function ClaimTable({ claims, placeholder = false }: Props) {
         <tbody>
           {claims.map((claim, index) => {
             const quadrant = getClaimQuadrant(claim);
+            /*
+              这一行的「别人做过」有没有分数。
+              placeholder（第 5b-2 步的全占位状态）优先：那时候所有主张都没分数，
+              整张表统一显示「待检索」，不单独挑几行出来。
+            */
+            const isBlind = !placeholder && blindSet.has(claim.id);
 
             return (
-              <tr key={claim.id}>
+              <tr key={claim.id} className={isBlind ? "is-blind" : undefined}>
                 <td className="col-no">{index + 1}</td>
 
                 <td className="col-type">
@@ -68,6 +91,13 @@ export default function ClaimTable({ claims, placeholder = false }: Props) {
                     <span className="claim-loc">{claim.location}</span>
                     {placeholder ? (
                       <span className="claim-quad claim-quad-pending">待检索</span>
+                    ) : isBlind ? (
+                      /*
+                        判象限要两个轴，现在只有一个。
+                        所以不给它上四象限的任何一种颜色 ——
+                        一上色就等于替用户判过了。
+                      */
+                      <span className="claim-quad claim-quad-blind">不知道</span>
                     ) : (
                       <span className={`claim-quad claim-quad-${quadrant}`}>
                         {QUADRANT_META[quadrant].label}
@@ -79,6 +109,11 @@ export default function ClaimTable({ claims, placeholder = false }: Props) {
                 <td className="col-score">
                   {placeholder ? (
                     <span className="score-pending">—</span>
+                  ) : isBlind ? (
+                    <>
+                      <span className="score-unknown">—</span>
+                      <span className="score-unknown-note">这次没查成</span>
+                    </>
                   ) : (
                     <>
                       <div className="score-bar">

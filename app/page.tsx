@@ -277,6 +277,7 @@ export default function Home() {
           <ClaimTable
             claims={result.claims}
             placeholder={meta?.scoresArePlaceholder ?? false}
+            blindClaimIds={meta?.blindClaimIds ?? []}
           />
 
           <div className="report-head">
@@ -285,6 +286,20 @@ export default function Home() {
               按「你答不上来的概率」从高到低排。左边有红杠那几条，
               是老师最可能当场追问的。
             </p>
+            {/*
+              为什么这里必须说一句「问题不受影响」：
+              用户会自己发现「地图说不知道、问题清单却说得斩钉截铁」，
+              不说清楚他就会以为哪儿坏了。
+              实际上问题的风险分来自「提纲自己有没有证据」，
+              跟查没查到别人的论文完全无关 —— 这一点必须讲明白，
+              否则用户会开始怀疑本来可信的东西。
+            */}
+            {(meta?.blindClaimIds.length ?? 0) > 0 && (
+              <p className="report-note">
+                有 {meta?.blindClaimIds.length} 条主张的查重没做成，但下面这些问题不受影响
+                —— 问题是从你的提纲本身问出来的，跟查没查到别人的论文无关。
+              </p>
+            )}
           </div>
 
           <QuestionList questions={result.questions} />
