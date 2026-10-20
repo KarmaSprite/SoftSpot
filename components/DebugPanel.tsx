@@ -29,6 +29,7 @@ import {
 } from "@/lib/theme";
 import { SAMPLE_OUTLINES, randomOutline, requestFillOutline } from "@/lib/samples";
 import { INSTANT_SAMPLES, requestInstantResult } from "@/lib/samples-instant";
+import { SITE } from "@/lib/config";
 
 /* ---------- 类型 ---------- */
 
@@ -156,6 +157,22 @@ export default function DebugPanel() {
 
   const [restarting, setRestarting] = useState(false);
   const [restartMsg, setRestartMsg] = useState("");
+
+  /**
+   * 调试面板的锁。
+   *
+   * 为什么要有这道门：这个面板对外的第一屏应该只有「测试面板」——
+   * 几条示例提纲、两个离线报告，点一下就能看。而重启开发服务器、
+   * 看路由表、看 key 配了几位这些东西，对一个来体验产品的老师毫无意义，
+   * 摆在最外层只会让他觉得这是个半成品。
+   *
+   * 为什么存在 state 里而不是 sessionStorage：
+   * 解锁只该管这一次会话。刷新页面就重新锁上，省得自己忘了关。
+   */
+  const [unlocked, setUnlocked] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
+  const [gateInput, setGateInput] = useState("");
+  const [gateError, setGateError] = useState("");
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
@@ -355,6 +372,41 @@ export default function DebugPanel() {
     }
   }
 
+  /* ---------- 调试面板的锁 ---------- */
+
+  function openGate() {
+    setGateOpen(true);
+    setGateInput("");
+    setGateError("");
+
+    /*
+      口令是空串时点一下直接进。
+      这是给"自己演示"留的后门：翻密码这个动作在录屏里只会显得笨。
+      真要放到公网上，把 SITE.debugPassword 改成一句话，门就真锁上了。
+    */
+    if (SITE.debugPassword === "") {
+      setUnlocked(true);
+      setGateOpen(false);
+    }
+  }
+
+  function submitGate() {
+    if (gateInput === SITE.debugPassword) {
+      setUnlocked(true);
+      setGateOpen(false);
+      setGateInput("");
+      setGateError("");
+      return;
+    }
+
+    /*
+      只写"不对"，不写"应该是什么"。
+      口令写在前端 bundle 里，真想翻的人翻得到 —— 这道门防的是误点，不是恶意。
+      所以错了就是错了，不给提示。
+    */
+    setGateError("口令不对");
+  }
+
   /* ---------- 隐藏与唤回 ---------- */
 
   function hideForSession() {
@@ -479,10 +531,12 @@ export default function DebugPanel() {
             `dbg-size-${size}`,
           ].join(" ")}
           role="dialog"
-          aria-label="调试面板"
+          aria-label={unlocked ? "调试面板" : "测试面板"}
         >
           <div className="dbg-head">
-            <span className="dbg-head-title">调试面板</span>
+            <span className="dbg-head-title">
+              {unlocked ? "调试面板" : "测试面板"}
+            </span>
             <span className="dbg-head-status">
               <i className={`dbg-dot dbg-dot-${status}`} />
               {STATUS_TEXT[status]}
@@ -491,230 +545,297 @@ export default function DebugPanel() {
               type="button"
               className="dbg-close"
               onClick={() => setOpen(false)}
-              aria-label="关闭调试面板"
+              aria-label={unlocked ? "关闭调试面板" : "关闭测试面板"}
             >
               ×
             </button>
           </div>
 
-          {/* ----- 状态 ----- */}
-          <div className="dbg-group">
-            <span className="dbg-group-title">状态</span>
-
-            <div className="dbg-row">
-              <span className="dbg-key">运行模式</span>
-              <span className="dbg-val">
-                {devInfo
-                  ? devInfo.nodeEnv === "development"
-                    ? "开发模式"
-                    : devInfo.nodeEnv
-                  : "—"}
-              </span>
+          {/*
+            三道分支，同一个面板三种样子：
+            ① 锁着 → 只有测试数据 + 离线示例（老师、评委、演示看的就是这一屏）
+            ② 正在输口令 → 一个输入框，别的都不显示
+            ③ 解锁了 → 原来的全部（状态 / 外观 / 路由 / 测试数据 / 离线示例 / 开发）
+            用同一个弹层而不是两个组件，是因为按钮位置、拖动、尺寸这些
+            都该共用一套，另起一个等于把这些逻辑抄一遍。
+          */}
+          {gateOpen ? (
+            <div className="dbg-group">
+              <span className="dbg-group-title">口令</span>
+              <input
+                type="password"
+                className="dbg-input"
+                value={gateInput}
+                onChange={(e) => {
+                  setGateInput(e.target.value);
+                  setGateError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitGate();
+                  if (e.key === "Escape") setGateOpen(false);
+                }}
+                placeholder="输入口令"
+                aria-label="调试面板口令"
+                autoFocus
+              />
+              {gateError && <p className="dbg-note dbg-note-bad">{gateError}</p>}
+              <button type="button" className="dbg-action" onClick={submitGate}>
+                进
+              </button>
+              <button
+                type="button"
+                className="dbg-action"
+                onClick={() => setGateOpen(false)}
+              >
+                算了
+              </button>
             </div>
+          ) : (
+            <>
+              {unlocked && (
+                <>
+                  {/* ----- 状态 ----- */}
+                  <div className="dbg-group">
+                    <span className="dbg-group-title">状态</span>
 
-            <div className="dbg-row">
-              <span className="dbg-key">API Key</span>
-              <span className={keyClass}>{keyText}</span>
-            </div>
+                    <div className="dbg-row">
+                      <span className="dbg-key">运行模式</span>
+                      <span className="dbg-val">
+                        {devInfo
+                          ? devInfo.nodeEnv === "development"
+                            ? "开发模式"
+                            : devInfo.nodeEnv
+                          : "—"}
+                      </span>
+                    </div>
 
-            <div className="dbg-row">
-              <span className="dbg-key">模型</span>
-              <span className="dbg-val">{health?.model ?? "—"}</span>
-            </div>
+                    <div className="dbg-row">
+                      <span className="dbg-key">API Key</span>
+                      <span className={keyClass}>{keyText}</span>
+                    </div>
 
-            <div className="dbg-row">
-              <span className="dbg-key">检测耗时</span>
-              <span className="dbg-val">
-                {elapsed === null ? "—" : `${elapsed} ms`}
-              </span>
-            </div>
-          </div>
+                    <div className="dbg-row">
+                      <span className="dbg-key">模型</span>
+                      <span className="dbg-val">{health?.model ?? "—"}</span>
+                    </div>
 
-          {health && health.warnings.length > 0 && (
-            <div className="dbg-warn">
-              <span className="dbg-warn-title">key 可能有问题</span>
-              <ul>
-                {health.warnings.map((w) => (
-                  <li key={w}>{w}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+                    <div className="dbg-row">
+                      <span className="dbg-key">检测耗时</span>
+                      <span className="dbg-val">
+                        {elapsed === null ? "—" : `${elapsed} ms`}
+                      </span>
+                    </div>
+                  </div>
 
-          {error && (
-            <div className="dbg-warn">
-              <span className="dbg-warn-title">检测失败</span>
-              <ul>
-                <li>{error}</li>
-              </ul>
-            </div>
-          )}
+                  {health && health.warnings.length > 0 && (
+                    <div className="dbg-warn">
+                      <span className="dbg-warn-title">key 可能有问题</span>
+                      <ul>
+                        {health.warnings.map((w) => (
+                          <li key={w}>{w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
-          {/* ----- 外观 ----- */}
-          <div className="dbg-group">
-            <span className="dbg-group-title">外观</span>
+                  {error && (
+                    <div className="dbg-warn">
+                      <span className="dbg-warn-title">检测失败</span>
+                      <ul>
+                        <li>{error}</li>
+                      </ul>
+                    </div>
+                  )}
 
-            <div className="dbg-row">
-              <span className="dbg-key">主题</span>
-              <span className="dbg-seg">
-                {THEME_MODES.map((mode) => (
+                  {/* ----- 外观 ----- */}
+                  <div className="dbg-group">
+                    <span className="dbg-group-title">外观</span>
+
+                    <div className="dbg-row">
+                      <span className="dbg-key">主题</span>
+                      <span className="dbg-seg">
+                        {THEME_MODES.map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            className={`dbg-seg-btn${theme === mode ? " is-on" : ""}`}
+                            onClick={() => chooseTheme(mode)}
+                            aria-pressed={theme === mode}
+                          >
+                            {THEME_LABEL[mode]}
+                          </button>
+                        ))}
+                      </span>
+                    </div>
+
+                    <div className="dbg-row">
+                      <span className="dbg-key">大小</span>
+                      <span className="dbg-seg">
+                        {SIZES.map((item) => (
+                          <button
+                            key={item.value}
+                            type="button"
+                            className={`dbg-seg-btn${size === item.value ? " is-on" : ""}`}
+                            onClick={() => chooseSize(item.value)}
+                            aria-pressed={size === item.value}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ----- 路由 ----- */}
+                  <div className="dbg-group">
+                    <span className="dbg-group-title">路由</span>
+
+                    <div className="dbg-row">
+                      <span className="dbg-key">打包器</span>
+                      <span className="dbg-val">
+                        {devInfo ? (devInfo.turbopack ? "Turbopack" : "Webpack") : "—"}
+                      </span>
+                    </div>
+
+                    <div className="dbg-row">
+                      <span className="dbg-key">Next</span>
+                      <span className="dbg-val">{devInfo?.nextVersion ?? "—"}</span>
+                    </div>
+
+                    <div className="dbg-row">
+                      <span className="dbg-key">Node</span>
+                      <span className="dbg-val">{devInfo?.nodeVersion ?? "—"}</span>
+                    </div>
+
+                    {devInfo && devInfo.routes.length > 0 && (
+                      <ul className="dbg-tree">
+                        {devInfo.routes.map((route) => (
+                          <li key={route.path} className="dbg-tree-row">
+                            <code className="dbg-tree-path">{route.path}</code>
+                            <span className="dbg-tree-files">
+                              {route.files.map((file) => (
+                                <span key={file} className="dbg-tree-file">
+                                  {file}
+                                </span>
+                              ))}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* ----- 测试数据 ----- */}
+              <div className="dbg-group">
+                <span className="dbg-group-title">测试数据</span>
+
+                {SAMPLE_OUTLINES.map((sample) => (
                   <button
-                    key={mode}
+                    key={sample.name}
                     type="button"
-                    className={`dbg-seg-btn${theme === mode ? " is-on" : ""}`}
-                    onClick={() => chooseTheme(mode)}
-                    aria-pressed={theme === mode}
+                    className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${sample.quality}`}
+                    onClick={() => requestFillOutline(sample.text)}
+                    title={sample.note}
                   >
-                    {THEME_LABEL[mode]}
+                    <span className="dbg-action-quality">{sample.quality}</span>
+                    <span>{sample.name}</span>
                   </button>
                 ))}
-              </span>
-            </div>
 
-            <div className="dbg-row">
-              <span className="dbg-key">大小</span>
-              <span className="dbg-seg">
-                {SIZES.map((item) => (
+                <button
+                  type="button"
+                  className="dbg-action dbg-action-sample"
+                  onClick={() => requestFillOutline(randomOutline())}
+                >
+                  随机凑一段
+                </button>
+
+                <p className="dbg-note">
+                  左边那个数是这份提纲的整体质量分：样本量、方法名、出处、
+                  干预轮次这些支撑结论的东西，写清楚了没有。数字是人工标的，
+                  标完都用真模型跑过一遍，跟报告里的纵轴对得上。
+                  点一下只填进输入框，不会自动开始诊断 —— 连点「随机凑一段」
+                  每次都不一样，用来验证「文字通顺但没证据」的提纲不会被夸成好选题。
+                </p>
+              </div>
+
+              {/* ----- 离线示例 ----- */}
+              <div className="dbg-group">
+                <span className="dbg-group-title">离线示例</span>
+
+                {INSTANT_SAMPLES.map((sample, index) => (
                   <button
-                    key={item.value}
+                    key={sample.name}
                     type="button"
-                    className={`dbg-seg-btn${size === item.value ? " is-on" : ""}`}
-                    onClick={() => chooseSize(item.value)}
-                    aria-pressed={size === item.value}
+                    className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${sample.quality} dbg-action-instant`}
+                    onClick={() => requestInstantResult(index)}
+                    title={sample.note}
                   >
-                    {item.label}
+                    <span className="dbg-action-quality">{sample.quality}</span>
+                    <span>{sample.name}</span>
                   </button>
                 ))}
-              </span>
-            </div>
-          </div>
 
-          {/* ----- 路由 ----- */}
-          <div className="dbg-group">
-            <span className="dbg-group-title">路由</span>
+                <p className="dbg-note">
+                  上面这两条是真跑过一遍、把结果存下来的 —— 点一下直接出报告，
+                  不联网、不花钱、不用等 30 秒。数据是 2026-10-20 用 deepseek-chat
+                  跑出来的原样，耗时和花费照实显示，别把它当成刚算的。
+                  第一条能跑出「你的主场」，第二条满屏红点，正好对比着看。
+                </p>
+              </div>
 
-            <div className="dbg-row">
-              <span className="dbg-key">打包器</span>
-              <span className="dbg-val">
-                {devInfo ? (devInfo.turbopack ? "Turbopack" : "Webpack") : "—"}
-              </span>
-            </div>
+              {unlocked ? (
+                <>
+                  {/* ----- 开发 ----- */}
+                  <div className="dbg-group">
+                    <span className="dbg-group-title">开发</span>
 
-            <div className="dbg-row">
-              <span className="dbg-key">Next</span>
-              <span className="dbg-val">{devInfo?.nextVersion ?? "—"}</span>
-            </div>
+                    <button
+                      type="button"
+                      className="dbg-action"
+                      onClick={() => void restart()}
+                      disabled={restarting}
+                    >
+                      {restarting ? "正在重启…" : "重启开发服务器"}
+                    </button>
+                    {restartMsg && <p className="dbg-note">{restartMsg}</p>}
 
-            <div className="dbg-row">
-              <span className="dbg-key">Node</span>
-              <span className="dbg-val">{devInfo?.nodeVersion ?? "—"}</span>
-            </div>
+                    <button
+                      type="button"
+                      className="dbg-action"
+                      onClick={() => void check()}
+                      disabled={status === "loading"}
+                    >
+                      重新检测
+                    </button>
 
-            {devInfo && devInfo.routes.length > 0 && (
-              <ul className="dbg-tree">
-                {devInfo.routes.map((route) => (
-                  <li key={route.path} className="dbg-tree-row">
-                    <code className="dbg-tree-path">{route.path}</code>
-                    <span className="dbg-tree-files">
-                      {route.files.map((file) => (
-                        <span key={file} className="dbg-tree-file">
-                          {file}
-                        </span>
-                      ))}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                    <button type="button" className="dbg-action" onClick={hideForSession}>
+                      本次会话隐藏
+                    </button>
+                    <p className="dbg-note">隐藏之后按 Shift + D 可以叫回来。</p>
+                  </div>
 
-          {/* ----- 测试数据 ----- */}
-          <div className="dbg-group">
-            <span className="dbg-group-title">测试数据</span>
-
-            {SAMPLE_OUTLINES.map((sample) => (
-              <button
-                key={sample.name}
-                type="button"
-                className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${sample.quality}`}
-                onClick={() => requestFillOutline(sample.text)}
-                title={sample.note}
-              >
-                <span className="dbg-action-quality">{sample.quality}</span>
-                <span>{sample.name}</span>
-              </button>
-            ))}
-
-            <button
-              type="button"
-              className="dbg-action dbg-action-sample"
-              onClick={() => requestFillOutline(randomOutline())}
-            >
-              随机凑一段
-            </button>
-
-            <p className="dbg-note">
-              左边那个数是这份提纲的整体质量分：样本量、方法名、出处、
-              干预轮次这些支撑结论的东西，写清楚了没有。数字是人工标的，
-              标完都用真模型跑过一遍，跟报告里的纵轴对得上。
-              点一下只填进输入框，不会自动开始诊断 —— 连点「随机凑一段」
-              每次都不一样，用来验证「文字通顺但没证据」的提纲不会被夸成好选题。
-            </p>
-          </div>
-
-          {/* ----- 离线示例 ----- */}
-          <div className="dbg-group">
-            <span className="dbg-group-title">离线示例</span>
-
-            {INSTANT_SAMPLES.map((sample, index) => (
-              <button
-                key={sample.name}
-                type="button"
-                className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${sample.quality} dbg-action-instant`}
-                onClick={() => requestInstantResult(index)}
-                title={sample.note}
-              >
-                <span className="dbg-action-quality">{sample.quality}</span>
-                <span>{sample.name}</span>
-              </button>
-            ))}
-
-            <p className="dbg-note">
-              上面这两条是真跑过一遍、把结果存下来的 —— 点一下直接出报告，
-              不联网、不花钱、不用等 30 秒。数据是 2026-10-20 用 deepseek-chat
-              跑出来的原样，耗时和花费照实显示，别把它当成刚算的。
-              第一条能跑出「你的主场」，第二条满屏红点，正好对比着看。
-            </p>
-          </div>
-
-          {/* ----- 开发 ----- */}
-          <div className="dbg-group">
-            <span className="dbg-group-title">开发</span>
-
-            <button
-              type="button"
-              className="dbg-action"
-              onClick={() => void restart()}
-              disabled={restarting}
-            >
-              {restarting ? "正在重启…" : "重启开发服务器"}
-            </button>
-            {restartMsg && <p className="dbg-note">{restartMsg}</p>}
-
-            <button
-              type="button"
-              className="dbg-action"
-              onClick={() => void check()}
-              disabled={status === "loading"}
-            >
-              重新检测
-            </button>
-
-            <button type="button" className="dbg-action" onClick={hideForSession}>
-              本次会话隐藏
-            </button>
-            <p className="dbg-note">隐藏之后按 Shift + D 可以叫回来。</p>
-          </div>
+                  <button
+                    type="button"
+                    className="dbg-action dbg-action-back"
+                    onClick={() => setUnlocked(false)}
+                  >
+                    ← 返回测试面板
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="dbg-action dbg-action-gate"
+                  onClick={openGate}
+                >
+                  调试面板
+                </button>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -733,9 +854,17 @@ export default function DebugPanel() {
           */
           e.preventDefault();
         }}
-        aria-label={open ? "收起调试面板" : "打开调试面板"}
+        aria-label={
+          open
+            ? unlocked
+              ? "收起调试面板"
+              : "收起测试面板"
+            : unlocked
+              ? "打开调试面板"
+              : "打开测试面板"
+        }
         aria-expanded={open}
-        title={`调试 · ${STATUS_TEXT[status]}（可拖动）`}
+        title={`${unlocked ? "调试" : "测试"} · ${STATUS_TEXT[status]}（可拖动）`}
       >
         <span className="dbg-icon" aria-hidden="true">
           &gt;_

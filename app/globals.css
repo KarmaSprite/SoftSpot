@@ -2054,6 +2054,59 @@ textarea {
   color: var(--faint);
 }
 
+/*
+   「调试面板」那道门。
+   做成虚线框 + 弱文字：它是一个"往下走"的入口，不是这一屏的主操作。
+   用实心强调色会让人以为这里最该点，而这一屏最该点的是上面那几条示例。
+*/
+.dbg-action-gate {
+  margin-top: var(--gap-sm);
+  border-style: dashed;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.dbg-action-gate:hover:not(:disabled) {
+  border-color: var(--faint);
+  color: var(--ink-soft);
+}
+
+/* 解锁之后那条「← 返回测试面板」，跟门对称，但不再是虚线：它只是退回去 */
+.dbg-action-back {
+  margin-top: var(--gap-sm);
+  border-style: dashed;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.dbg-input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.dbg-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* 口令错了。只标红这一行字，不把整个输入框变红 —— 那看起来像系统故障 */
+/*
+   用 --q-weak-ink 而不是 --q-weak：前者是为"当文字颜色"调的（深色模式下
+   提亮到 #e89a8f），后者是给实心圆点用的（深色模式只有 #b8483a）。
+   11px 的字压在面板底色上，用圆点那个色在深色模式下读不清。
+*/
+.dbg-note-bad {
+  color: var(--q-weak-ink);
+}
+
 /* ----- 窄屏 ----- */
 
 @media (max-width: 600px) {
