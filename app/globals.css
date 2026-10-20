@@ -117,6 +117,18 @@
   --tip-q-weak-bg: light-dark(rgba(168, 58, 44, 0.32), rgba(168, 58, 44, 0.45));
   --tip-q-weak-ink: #f4a99d;
 
+  /*
+     「不知道」那一列的点。
+     刻意不用四象限里的任何颜色 —— 一旦染上绿/黄/红，
+     这个点就被读成"已经判过了"，而我们恰恰是在说"这次判不了"。
+     灰 + 虚线边框是通用语汇里的"这里还没定"，读者不用学。
+  */
+  --blind-dot-bg: light-dark(#ffffff, #1e2228);
+  --blind-dot-line: light-dark(#a8aeb8, #6d757f);
+  --blind-dot-ink: light-dark(#545b64, #b9c0ca);
+  --tip-q-blind-bg: light-dark(rgba(120, 128, 140, 0.34), rgba(120, 128, 140, 0.45));
+  --tip-q-blind-ink: #d5dae1;
+
   /* 阴影只给浮层用，所以只需要阴影颜色，不需要整套 box-shadow 变量 */
   --shadow-soft: light-dark(rgba(16, 18, 24, 0.1), rgba(0, 0, 0, 0.5));
   --shadow-float: light-dark(rgba(16, 18, 24, 0.18), rgba(0, 0, 0, 0.6));
@@ -485,6 +497,136 @@ textarea {
   margin-top: var(--gap-md);
 }
 
+/*
+   一行两栏：左边「不知道」，右边四象限地图。
+   align-items: stretch 是关键 —— 左栏的高度被拉成跟地图一样高，
+   栏里的 top 百分比才有意义，同一个「答得上来」分数在两边才是同一高度。
+
+   行本身 max-width 620 + margin auto，是为了让左栏和地图合起来仍然居中；
+   左栏的宽度从地图的宽度里让出来，地图本身还是方的（aspect-ratio: 1/1）。
+*/
+.map-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--gap-sm);
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+/*
+   有左栏的时候，整行比地图宽出「栏宽 + 间距」。
+   所以这时候把行的 max-width 放开到 620 + 72 + 10 = 702，
+   再把地图那边改成 flex: 1 让它自己占满剩下的宽度。
+   不这么做的话地图会被挤窄，正方形变成竖长方形，两个轴的刻度比例就不一致了。
+*/
+.map-row-blind {
+  max-width: 702px;
+  /*
+     上方留一条 46px 的空带，给左栏标题「不知道 / 横轴没查到」用。
+     标题是 absolute + bottom: 100% 挂在栏外面的（放栏里会让栏内可用高度变矮，
+     点会整体下移，跟右边地图对不齐），不给这条空带它就会压到上面那段说明文字上。
+     46 = 标题两行 33px + 它自己的 6px 下边距 + 7px 呼吸。
+  */
+  padding-top: 46px;
+}
+
+.map-row-blind .map {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+}
+
+/*
+   左栏：横轴未知的那几条主张。
+   position: relative 是给栏里的 .spot 当坐标原点，
+   也是给标题（bottom: 100%）当定位基准。
+*/
+.map-blind {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  border: 1px dashed var(--map-axis);
+  border-radius: var(--radius-panel);
+  background: var(--sunken);
+}
+
+/*
+   栏标题挂在栏的上方，不进栏内。
+   为什么不放栏里：一放进去，栏里能被 top 百分比使用的区域就少了一截，
+   所有点会整体往下偏，跟右边地图同一个分数的点对不齐 ——
+   "纵轴照用"就成了半句假话。
+*/
+.map-blind-cap {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: 100%;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.map-blind-title {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.map-blind-note {
+  margin-top: 1px;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/*
+   全部主张都没查成时，四象限里一个点都没有。
+   这一层说明必须存在：一片空白的四象限看起来像
+   "你的选题全新、全都没问题"，那是这张图能给出的最危险的误读。
+*/
+.map-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap-lg);
+  text-align: center;
+  pointer-events: none;
+}
+
+.map-empty-title {
+  color: var(--ink);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+/*
+   说明文字底下要有一块实心底板。
+   四象限的十字分界线是绝对定位压在图上的，不垫底板的话
+   分界线会从说明文字中间穿过去，一段话被切成四块。
+   底板用 --surface（跟地图同色）+ 一圈描边，读起来才像一块独立的说明。
+*/
+.map-empty-plate {
+  max-width: 360px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.map-empty-body {
+  max-width: 340px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.75;
+}
+
 .map {
   position: relative;
   width: 100%;
@@ -665,6 +807,19 @@ textarea {
 }
 
 /*
+   左栏的虚线圆圈。
+   边框用虚线而不是实线：实心圆点在这张图里的意思是"已经定下来了，
+   颜色就是它的结论"，虚线读起来是"这里还是个空位"。
+   底色用白/深灰而不是透明，是因为它可能压在灰底上，
+   透明会让它糊成一片，看不出是个圆。
+*/
+.spot-dot-blind {
+  border: 1.5px dashed var(--blind-dot-line);
+  background: var(--blind-dot-bg);
+  color: var(--blind-dot-ink);
+}
+
+/*
    悬停提示：纯 CSS 控制显隐，不写 JS 状态。
    全站只保留这一个阴影，因为它是浮层，必须和底下的内容分开。
    其它地方（面板、卡片、表格）一律不用阴影，靠 1px 线和留白分组。
@@ -752,6 +907,11 @@ textarea {
   color: var(--tip-q-weak-ink);
 }
 
+.spot-tip-quad-blind {
+  background: var(--tip-q-blind-bg);
+  color: var(--tip-q-blind-ink);
+}
+
 /* 轴说明与图例 */
 .map-axis-note {
   display: flex;
@@ -808,6 +968,21 @@ textarea {
 
 .legend-dot-weak {
   background: var(--q-weak);
+}
+
+/* 图例里的虚线圆：跟左栏的点一个意思，所以也用虚线 */
+.legend-dot-blind {
+  border: 1px dashed var(--blind-dot-line);
+  background: var(--blind-dot-bg);
+}
+
+/*
+   轴说明里补的第三行：左栏是什么。
+   单独占一整行（flex-basis: 100%），因为它是解释一整栏的，
+   跟横轴、纵轴那两行并列排会把话挤断。
+*/
+.map-axis-note-blind {
+  flex-basis: 100%;
 }
 
 /* ---------- 9. 主张表 ---------- */
@@ -1204,6 +1379,35 @@ textarea {
 
   .spot-tip {
     width: 210px;
+  }
+
+  /*
+     手机上左栏收窄到 46px。
+     72px 在 390px 宽的屏幕上要吃掉五分之一的横向空间，
+     地图会被挤成一个小方块，点全叠在一起，反而看不清。
+     46px 还放得下 19px 的圆点和两位数编号。
+  */
+  .map-row-blind {
+    max-width: none;
+    gap: 6px;
+    /* 窄屏标题字号缩到 11/10px，两行约 29px，加 4px 下边距再留 7px 呼吸 */
+    padding-top: 40px;
+  }
+
+  .map-blind {
+    width: 46px;
+  }
+
+  .map-blind-title {
+    font-size: 11px;
+  }
+
+  .map-blind-note {
+    font-size: 10px;
+  }
+
+  .map-blind-cap {
+    margin-bottom: 4px;
   }
 
   /* 手机上表格改成卡片式，避免横向滚动 */

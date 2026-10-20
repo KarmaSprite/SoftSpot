@@ -102,6 +102,33 @@ function clampToPlot(value: number): number {
   return Math.min(100 - PLOT_INSET, Math.max(PLOT_INSET, value));
 }
 
+/**
+ * 左边「不知道」那一列专用的推开逻辑：**只动上下，不动左右**。
+ *
+ * 为什么不能复用 spreadPoints：那一列只有 72px 宽（手机上 46px），
+ * 横向挪 7 个百分点就会跑到框外面去。而纵向只有一个自由度，
+ * 反而更容易撞 —— 两条主张的「答得上来」分数一样时，两个圆圈会完全重叠。
+ *
+ * 推的方向固定先往下、再往上，交替加距离，跟 spreadPoints 一样是写死的，
+ * 同一份数据每次画出来位置一样。
+ */
+function spreadVertically(values: number[]): number[] {
+  const placed: number[] = [];
+
+  return values.map((raw) => {
+    let y = clampToPlot(raw);
+
+    for (const step of [1, -1, 2, -2, 3, -3, 4, -4, 5, -5]) {
+      const taken = placed.some((other) => Math.abs(other - y) < MIN_GAP);
+      if (!taken) break;
+      y = clampToPlot(raw + step * MIN_GAP);
+    }
+
+    placed.push(y);
+    return y;
+  });
+}
+
 type Props = {
   claims: Claim[];
   /**
@@ -114,99 +141,195 @@ type Props = {
    * 画一个诚实的空状态，比画一个错得看不出来的图好。
    */
   placeholder?: boolean;
+  /**
+   * 检索一个数据库都没答话的主张 id。
+   *
+   * 这些主张的 overlap 是 0，但那个 0 不是"没人做过"，是"不知道"。
+   * 画在图里会落在最左边，读起来正好是最乐观的结论 —— 那是假话。
+   * 所以它们不进四象限，单独摆在左边一列，纵轴（答得上来）照用，
+   * 因为纵轴是数提纲里的证据算出来的，跟检索成没成功没关系，是真分数。
+   */
+  blindClaimIds?: string[];
 };
 
-export default function SoftSpotMap({ claims, placeholder = false }: Props) {
+export default function SoftSpotMap({
+  claims,
+  placeholder = false,
+  blindClaimIds = [],
+}: Props) {
   const showDots = !placeholder;
+
+  /*
+     先把主张分成两堆，但编号保留它在原始数组里的位置。
+     为什么不能重新编号：主张表里 1 号就是 1 号，地图上 1 号跑到别处去了，
+     用户拿着两张东西对不上，会以为看串了。
+  */
+  const blindSet = new Set(blindClaimIds);
+  const indexed = claims.map((claim, index) => ({ claim, index }));
+  const blindItems = indexed.filter(({ claim }) => blindSet.has(claim.id));
+  const knownItems = indexed.filter(({ claim }) => !blindSet.has(claim.id));
 
   /*
      先把每条主张的原始位置算出来，再统一推开重叠的点。
      两件事分开做：位置是数据，推开是显示，混在一起以后就没法单独验证坐标对不对。
   */
-  const rawPositions = claims.map((claim) => ({
-    x: claim.overlap,
-    y: 100 - claim.defensibility,
-  }));
-  const positions = spreadPoints(rawPositions);
+  const knownPositions = spreadPoints(
+    knownItems.map(({ claim }) => ({
+      x: claim.overlap,
+      y: 100 - claim.defensibility,
+    })),
+  );
+
+  const blindTops = spreadVertically(blindItems.map(({ claim }) => 100 - claim.defensibility));
+
+  const showBlindColumn = showDots && blindItems.length > 0;
+  const mapIsEmpty = showDots && knownItems.length === 0;
 
   return (
     <div className="map-block">
-      <div className="map" role="img" aria-label="软肋地图：每条主张按新旧和把握程度落在四象限">
-        {/* 四块象限底色 */}
-        {CORNERS.map(({ quadrant, pos }) => (
-          <div
-            key={`bg-${quadrant}`}
-            className={`map-quad map-quad-${pos} map-bg-${quadrant}`}
-          />
-        ))}
-
-        {/* 两条分界线 */}
-        <div className="map-axis map-axis-h" />
-        <div className="map-axis map-axis-v" />
-
-        {/* 四角标签 */}
-        {CORNERS.map(({ quadrant, pos }) => (
-          <span
-            key={`tag-${quadrant}`}
-            className={`map-tag map-tag-${pos} map-tag-${quadrant}`}
-          >
-            {QUADRANT_META[quadrant].label}
-          </span>
-        ))}
-
+      <div className={`map-row${showBlindColumn ? " map-row-blind" : ""}`}>
         {/*
-          待检索态：不画点，盖一层说明。
-          这层用 absolute 铺满画布而不是替掉整个 .map，
-          是因为四个象限底色和标签还要留着 —— 用户得先看懂这张图该怎么读，
-          才知道等分数算出来之后该往哪儿看。
+          左边这一列：横轴未知的主张。
+          高度跟地图完全一样（父级 align-items: stretch），
+          所以同一个「答得上来」分数在两边的视觉高度是对得上的。
+
+          标题用绝对定位挂在栏的上方（bottom: 100%），不占栏内空间 ——
+          一旦让它占位，栏的可绘制区域就比地图矮一截，
+          栏里的点会整体往下偏一点点，"纵轴照用"就成了半句假话。
         */}
-        {!showDots && (
-          <div className="map-pending">
-            <p className="map-pending-title">分数还没算</p>
-            <p className="map-pending-body">
-              这 {claims.length} 条主张的分数都是占位值，全在正中间那条线上，
-              画出来只会叠成一个点。等接上 arXiv 和 Crossref，点才会散开。
-            </p>
-          </div>
-        )}
+        {showBlindColumn && (
+          <div className="map-blind">
+            <div className="map-blind-cap">
+              <p className="map-blind-title">不知道</p>
+              {/*
+                这里只能放四个字。栏在手机上只有 46px 宽，
+                「横轴没查到」五个字会折成「横轴没查 / 到」两行，
+                底下多出来的「到」看着像排版坏了。
+              */}
+              <p className="map-blind-note">横轴未知</p>
+            </div>
 
-        {/* 每条主张一个点 */}
-        {showDots &&
-          claims.map((claim, index) => {
-            const quadrant = getClaimQuadrant(claim);
-            const point = positions[index];
-            const tipSide = [
-              point.x > 62 ? "tip-left" : "",
-              point.y < 38 ? "tip-down" : "",
-            ]
-              .filter(Boolean)
-              .join(" ");
-
-            return (
+            {blindItems.map(({ claim, index }, i) => (
               <div
                 key={claim.id}
                 className="spot"
-                style={{
-                  left: `${point.x}%`,
-                  top: `${point.y}%`,
-                }}
+                style={{ left: "50%", top: `${blindTops[i]}%` }}
               >
-                <span className={`spot-dot spot-dot-${quadrant}`}>
-                  {index + 1}
-                </span>
-                <div className={`spot-tip ${tipSide}`}>
+                <span className="spot-dot spot-dot-blind">{index + 1}</span>
+                <div className="spot-tip">
                   <p className="spot-tip-text">{claim.text}</p>
                   <div className="spot-tip-meta">
-                    <span className={`spot-tip-quad spot-tip-quad-${quadrant}`}>
-                      {QUADRANT_META[quadrant].label}
-                    </span>
-                    <span>别人做过 {claim.overlap}</span>
+                    <span className="spot-tip-quad spot-tip-quad-blind">这次没查到</span>
                     <span>答得上来 {claim.defensibility}</span>
                   </div>
                 </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
+        )}
+
+        <div
+          className="map"
+          role="img"
+          aria-label="软肋地图：每条主张按新旧和把握程度落在四象限"
+        >
+          {/* 四块象限底色 */}
+          {CORNERS.map(({ quadrant, pos }) => (
+            <div
+              key={`bg-${quadrant}`}
+              className={`map-quad map-quad-${pos} map-bg-${quadrant}`}
+            />
+          ))}
+
+          {/* 两条分界线 */}
+          <div className="map-axis map-axis-h" />
+          <div className="map-axis map-axis-v" />
+
+          {/* 四角标签 */}
+          {CORNERS.map(({ quadrant, pos }) => (
+            <span
+              key={`tag-${quadrant}`}
+              className={`map-tag map-tag-${pos} map-tag-${quadrant}`}
+            >
+              {QUADRANT_META[quadrant].label}
+            </span>
+          ))}
+
+          {/*
+            待检索态：不画点，盖一层说明。
+            这层用 absolute 铺满画布而不是替掉整个 .map，
+            是因为四个象限底色和标签还要留着 —— 用户得先看懂这张图该怎么读，
+            才知道等分数算出来之后该往哪儿看。
+          */}
+          {!showDots && (
+            <div className="map-pending">
+              <p className="map-pending-title">分数还没算</p>
+              <p className="map-pending-body">
+                这 {claims.length} 条主张的分数都是占位值，全在正中间那条线上，
+                画出来只会叠成一个点。等接上 arXiv 和 Crossref，点才会散开。
+              </p>
+            </div>
+          )}
+
+          {/*
+            全部主张都没查成：四象限里一个点都没有。
+            这时候必须说清楚"是没查到，不是全都不撞车"——
+            一片空白的四象限看起来像"你的选题全新、全都没问题"，
+            那是这张图能给出的最危险的误读。
+          */}
+          {mapIsEmpty && (
+            <div className="map-empty">
+              {/*
+                说明文字必须装在一块实心底板上。
+                不装的话四象限的十字分界线会从字中间穿过去，
+                一段话被切成四块，读起来像排版坏了。
+              */}
+              <div className="map-empty-plate">
+                <p className="map-empty-title">这次一个库都没答话</p>
+                <p className="map-empty-body">
+                  所以「别人做过吗」这一项对每条主张都不知道。左边那列的点只标了「你答得上来吗」，
+                  横轴是空的 —— 别照着这张图判断选题新不新。
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* 每条分数可信的主张一个点 */}
+          {showDots &&
+            knownItems.map(({ claim, index }, i) => {
+              const quadrant = getClaimQuadrant(claim);
+              const point = knownPositions[i];
+              const tipSide = [
+                point.x > 62 ? "tip-left" : "",
+                point.y < 38 ? "tip-down" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+              return (
+                <div
+                  key={claim.id}
+                  className="spot"
+                  style={{
+                    left: `${point.x}%`,
+                    top: `${point.y}%`,
+                  }}
+                >
+                  <span className={`spot-dot spot-dot-${quadrant}`}>{index + 1}</span>
+                  <div className={`spot-tip ${tipSide}`}>
+                    <p className="spot-tip-text">{claim.text}</p>
+                    <div className="spot-tip-meta">
+                      <span className={`spot-tip-quad spot-tip-quad-${quadrant}`}>
+                        {QUADRANT_META[quadrant].label}
+                      </span>
+                      <span>别人做过 {claim.overlap}</span>
+                      <span>答得上来 {claim.defensibility}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
       </div>
 
       {/*
@@ -221,6 +344,11 @@ export default function SoftSpotMap({ claims, placeholder = false }: Props) {
         <span>
           <b>纵轴 · 答得上来</b> 0 没底 ｜ 100 很稳
         </span>
+        {showBlindColumn && (
+          <span className="map-axis-note-blind">
+            <b>左栏 · 不知道</b> 这次检索没答话，横轴分数不算数，只有纵轴是真的
+          </span>
+        )}
       </div>
 
       {/* 图例 */}
@@ -231,6 +359,12 @@ export default function SoftSpotMap({ claims, placeholder = false }: Props) {
             {QUADRANT_META[q].label}
           </li>
         ))}
+        {showBlindColumn && (
+          <li>
+            <span className="legend-dot legend-dot-blind" />
+            这次没查到
+          </li>
+        )}
       </ul>
     </div>
   );

@@ -28,6 +28,13 @@ type AnalyzeResponse = {
   costYuan: number;
   model: string;
   scoresArePlaceholder: boolean;
+  /**
+   * 哪些主张这次没查成。
+   *
+   * 服务端在这些主张上填的 overlap 是 0，但那个 0 的意思是"不知道"，
+   * 不是"没人做过"。客户端必须把它们单独摆出来，不能当 0 分画进图里。
+   */
+  blindClaimIds: string[];
   elapsedMs: number;
 };
 
@@ -38,6 +45,7 @@ type Meta = {
   totalTokens: number;
   warnings: string[];
   scoresArePlaceholder: boolean;
+  blindClaimIds: string[];
 };
 
 export default function Home() {
@@ -93,6 +101,12 @@ export default function Home() {
         totalTokens: data.usage.totalTokens,
         warnings: data.warnings,
         scoresArePlaceholder: data.scoresArePlaceholder,
+        /**
+         * 老接口没有这个字段（第 13 步之前的响应里没有 blindClaimIds）。
+         * 用 ?? [] 兜住：字段缺失时当作"全都查成了"，
+         * 总比拿 undefined 去 .length 报错强。
+         */
+        blindClaimIds: data.blindClaimIds ?? [],
       });
     } catch (e) {
       /**
@@ -249,6 +263,7 @@ export default function Home() {
           <SoftSpotMap
             claims={result.claims}
             placeholder={meta?.scoresArePlaceholder ?? false}
+            blindClaimIds={meta?.blindClaimIds ?? []}
           />
 
           <div className="report-head">
