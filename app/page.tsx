@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import SoftSpotMap from "@/components/SoftSpotMap";
 import ClaimTable from "@/components/ClaimTable";
@@ -8,6 +8,7 @@ import QuestionList from "@/components/QuestionList";
 import HomeGround from "@/components/HomeGround";
 import { SITE } from "@/lib/config";
 import { parseManualRefs } from "@/lib/manual";
+import { FILL_OUTLINE_EVENT } from "@/lib/samples";
 import type { AnalysisResult, Claim, Question } from "@/lib/types";
 
 /**
@@ -113,6 +114,47 @@ export default function Home() {
    * 警告留到提交后，由服务端一次性告诉你。
    */
   const manualCount = parseManualRefs(manualText).refs.length;
+
+  /**
+   * 接调试面板那条「把这段提纲填进去」的消息。
+   *
+   * 为什么用 window 上的自定义事件而不是传 props：
+   * 调试面板挂在 app/layout.tsx 上，输入框在 app/page.tsx 里，
+   * 而 layout 是 page 的父组件 —— 想让它改 page 的 state 方向是反的，
+   * 只能靠 context 或者全局状态。一个事件比这两样都轻：
+   * 谁想填就 dispatch，谁想接就 listen，不用为了一个调试功能改动组件树。
+   * 事件名和载荷类型是约定，所以两边共用 lib/samples.ts 里那个常量。
+   *
+   * 为什么只填空、不自动开始诊断：
+   * 自动跑一次就是一次真花钱的模型调用（约 0.04 元），
+   * 而用户点这个按钮的意图往往只是"我想看看这段提纲长什么样"。
+   * 填完停在那儿，让他自己决定要不要花这个钱。
+   */
+  useEffect(() => {
+    function onFill(event: Event) {
+      const text = (event as CustomEvent<string>).detail;
+      if (typeof text !== "string" || text.length === 0) return;
+
+      setOutline(text);
+      setError(null);
+
+      /*
+        等 React 把新值写进 DOM 再把光标挪到末尾。
+        不等的后果：textarea 里还是旧内容，setSelectionRange 会按旧长度定位，
+        光标落在中间，用户接着打字就插进正文里了。
+      */
+      requestAnimationFrame(() => {
+        const el = document.getElementById("outline");
+        if (el instanceof HTMLTextAreaElement) {
+          el.focus();
+          el.setSelectionRange(text.length, text.length);
+        }
+      });
+    }
+
+    window.addEventListener(FILL_OUTLINE_EVENT, onFill);
+    return () => window.removeEventListener(FILL_OUTLINE_EVENT, onFill);
+  }, []);
 
   async function handleSubmit() {
     if (!canSubmit) return;

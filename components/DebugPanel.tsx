@@ -27,6 +27,7 @@ import {
   saveTheme,
   type ThemeMode,
 } from "@/lib/theme";
+import { SAMPLE_OUTLINES, randomOutline, requestFillOutline } from "@/lib/samples";
 
 /* ---------- 类型 ---------- */
 
@@ -624,6 +625,36 @@ export default function DebugPanel() {
                 ))}
               </ul>
             )}
+          </div>
+
+          {/* ----- 测试数据 ----- */}
+          <div className="dbg-group">
+            <span className="dbg-group-title">测试数据</span>
+
+            {SAMPLE_OUTLINES.map((sample) => (
+              <button
+                key={sample.name}
+                type="button"
+                className="dbg-action dbg-action-sample"
+                onClick={() => requestFillOutline(sample.text)}
+                title={sample.note}
+              >
+                {sample.name}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              className="dbg-action dbg-action-sample"
+              onClick={() => requestFillOutline(randomOutline())}
+            >
+              随机凑一段
+            </button>
+
+            <p className="dbg-note">
+              填进输入框，不会自动开始诊断。连点「随机凑一段」每次都不一样 ——
+              用来验证「文字通顺但没证据」的提纲不会被夸成好选题。
+            </p>
           </div>
 
           {/* ----- 开发 ----- */}
