@@ -333,6 +333,107 @@ console.log("\n[7] 真实提纲：不同性质的主张必须算出不同的分"
 }
 
 /* ---------------------------------------------------------------
+   [7b] 整份提纲的证据能借给单条主张
+   --------------------------------------------------------------- */
+
+console.log("\n[7b] 提纲里写过的样本量和方法，单条主张能借到");
+{
+  /*
+     这是真实的一类失败：一份 600 字提纲里明明写着「两个平行班各 64 人」
+     「Kappa 0.82」「α=0.89」，但 L1 是逐句切的，这些只落在其中一两条上，
+     另外六条主张的「有没有数字」全拿 0 分 —— 用户答得上来，算法认为答不上来。
+
+     这份 outline 就是那段真实提纲的节选。
+  */
+  const outline = [
+    "一、研究背景：混合式教学在高校课程中已广泛推开，但学习投入的中介作用尚不清楚。",
+    "二、研究问题：教学设计如何通过学生学习投入影响学业表现。",
+    "三、研究内容：三个研究问题，分别对应描述、解释与检验。",
+    "四、研究方法：采用准实验设计，两个平行班各 64 人，历时 16 周，前后测。",
+    "课堂发言质量由两名研究者依据自编编码表独立编码，评分者一致性 Kappa 为 0.82。",
+    "五、预期成果：形成一套可复用的分析框架，并发表一篇教学研究论文。",
+  ].join("\n");
+
+  const bare = claim("如何用真实弹幕语料训练学生的临场应答能力", "problem");
+
+  const withoutOutline = evidenceOf(bare);
+  const withOutline = evidenceOf(bare, outline);
+
+  check(
+    "同一句主张，给了提纲之后分更高",
+    withOutline.score > withoutOutline.score,
+    `${withoutOutline.score} → ${withOutline.score}`,
+  );
+
+  const numbers = withOutline.dimensions.find((d) => d.name === "有没有数字");
+  check(
+    "「有没有数字」从 0 分借到了分",
+    numbers.score > 0,
+    `${numbers.score} 分，命中 ${JSON.stringify(numbers.hits)}`,
+  );
+
+  check(
+    "借来的词在 hits 里标着「提纲里有」，用户能看出不是这句话自己写的",
+    numbers.hits.some((hit) => hit.startsWith("提纲里有：")),
+    JSON.stringify(numbers.hits),
+  );
+
+  /*
+     折扣必须真的存在：借来的分不能等于提纲本身的满分。
+     否则一句空话只要提纲写得厚，就能拿满分 —— 那是在奖励灌水。
+  */
+  check(
+    "借来的分打了折，不是直接拿提纲的满分",
+    numbers.score < 100,
+    `${numbers.score} 分`,
+  );
+
+  /*
+     「说得具体吗」不许借。
+     它问的是这句话本身够不够具体，借提纲的分等于给空话灌水。
+  */
+  const shortClaim = claim("提升学生能力", "expectation");
+  const shortWithOutline = evidenceOf(shortClaim, outline);
+  const specific = shortWithOutline.dimensions.find((d) => d.name === "说得具体吗");
+  check(
+    "「说得具体吗」不借提纲的分",
+    specific.score === evidenceOf(shortClaim).dimensions.find((d) => d.name === "说得具体吗").score,
+    `${specific.score} 分`,
+  );
+
+  /*
+     反向断言：这句话自己就写全了的时候，不能因为借分而变低。
+     借分只往上补，不往下压。
+  */
+  const solid = claim("采用准实验设计，两个平行班各 64 人，历时 16 周，前后测", "method");
+  check(
+    "自己写全了的主张，借分之后不会更低",
+    evidenceOf(solid, outline).score >= evidenceOf(solid).score,
+    `${evidenceOf(solid).score} → ${evidenceOf(solid, outline).score}`,
+  );
+
+  /*
+     空提纲、空串，行为跟不传一样 —— 不能因为传了个空串就崩或者变分。
+  */
+  check(
+    "传空串提纲，等于没传",
+    evidenceOf(bare, "").score === withoutOutline.score,
+    `${withoutOutline.score} vs ${evidenceOf(bare, "").score}`,
+  );
+
+  /*
+     整份提纲全都很弱时，借分也借不出东西来 —— 这是对的。
+     一份什么都没写的提纲，不该能让它的主张凭空变稳。
+  */
+  const weakOutline = "我觉得这个题目很有意思，想研究一下短视频对学生的好处。";
+  check(
+    "提纲本身没证据时，借不到分",
+    evidenceOf(bare, weakOutline).score === withoutOutline.score,
+    `${withoutOutline.score} vs ${evidenceOf(bare, weakOutline).score}`,
+  );
+}
+
+/* ---------------------------------------------------------------
    [8] 边界
    --------------------------------------------------------------- */
 

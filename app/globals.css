@@ -2036,21 +2036,21 @@ textarea {
 }
 
 /*
-   分数越高颜色越实。四档：90 用强调色，60 用正文色，40 和 20 用弱色。
-   为什么不做四档颜色（红黄绿）：这四个分数标的是「开题写得多完整」，
-   不是「好/坏」的判断 —— 40 分那份不是"错"，只是"还没写清楚"。
-   用红绿灯会让用户以为系统在给他打分，而它其实只是在描述现状。
+   分数越高颜色越实。三档：高用强调色，中用正文色，低用弱色。
+   为什么按档而不是按具体数字选样式：
+   之前写成 .dbg-action-q90 / q60 / q40 / q20，分数一改（90→50）样式就全落空，
+   四个按钮变成同一个灰 —— 一个只在特定数字下才生效的样式，等于没写。
+   档位是稳定的语义，具体数字会跟着算法和提纲变。
 */
-.dbg-action-q90 .dbg-action-quality {
+.dbg-action-qhigh .dbg-action-quality {
   color: var(--accent-ink);
 }
 
-.dbg-action-q60 .dbg-action-quality {
+.dbg-action-qmid .dbg-action-quality {
   color: var(--ink-soft);
 }
 
-.dbg-action-q40 .dbg-action-quality,
-.dbg-action-q20 .dbg-action-quality {
+.dbg-action-qlow .dbg-action-quality {
   color: var(--faint);
 }
 
@@ -2689,6 +2689,7 @@ textarea {
   .risk-badge,
   .question-no,
   .alert-warn,
+  .overall,
   .question-card::before {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -2746,7 +2747,8 @@ textarea {
   .claim-table tr,
   .question-card,
   .map-block,
-  .report-footnote {
+  .report-footnote,
+  .overall {
     break-inside: avoid;
   }
 
@@ -3487,5 +3489,123 @@ textarea {
 @media print {
   .result-bar {
     display: none !important;
+  }
+}
+
+/* ---------- 19. 总体评分 ---------- */
+
+/*
+   一块横条，左边大字分数，右边解释和公式。
+   为什么不做成一个大圆环或者仪表盘：
+   这是个学术工具，用户要看的是"我这份几斤几两"，不是被一个仪表盘哄。
+   大字 + 一句人话 + 一行公式，信息密度最高，也最不容易被误解成游戏化评分。
+*/
+.overall {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-lg);
+  margin-top: var(--gap-md);
+  padding: var(--gap-md) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.overall-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 auto;
+  min-width: 96px;
+}
+
+.overall-label {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+}
+
+/*
+   分数用等宽数字。
+   不这么做的话，55 和 100 的宽度差会让下面那行文字左右跳，
+   而这个数字是报告里唯一会变的"主角"，它不该抖。
+*/
+.overall-value {
+  color: var(--ink);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+.overall-max {
+  margin-left: 2px;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/*
+   算不出来的时候（一条都没查成）走这里。
+   用弱色而不是红色：这不是错误，是"我们没数据"，骂用户没有道理。
+*/
+.overall-value.is-unknown {
+  color: var(--faint);
+}
+
+.overall-verdict {
+  margin-top: 2px;
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.overall-verdict.is-unknown {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.overall-side {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.overall-reason {
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+/*
+   公式比理由再轻一档。
+   它是"可以核对"的东西，不是"必须读"的东西 ——
+   想验算的人会看，不想看的人不该被它挡住。
+*/
+.overall-formula {
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+  .overall {
+    flex-direction: column;
+    gap: var(--gap-sm);
+  }
+
+  .overall-main {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .overall-value {
+    font-size: var(--fs-lg);
+    letter-spacing: -0.5px;
   }
 }

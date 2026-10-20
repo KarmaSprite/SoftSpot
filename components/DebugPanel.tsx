@@ -27,7 +27,7 @@ import {
   saveTheme,
   type ThemeMode,
 } from "@/lib/theme";
-import { SAMPLE_OUTLINES, randomOutline, requestFillOutline } from "@/lib/samples";
+import { SAMPLE_OUTLINES, qualityBand, randomOutline, requestFillOutline } from "@/lib/samples";
 import { INSTANT_SAMPLES, requestInstantResult } from "@/lib/samples-instant";
 import { SITE } from "@/lib/config";
 
@@ -735,7 +735,7 @@ export default function DebugPanel() {
                   <button
                     key={sample.name}
                     type="button"
-                    className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${sample.quality}`}
+                    className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${qualityBand(sample.quality)}`}
                     onClick={() => requestFillOutline(sample.text)}
                     title={sample.note}
                   >
@@ -753,9 +753,9 @@ export default function DebugPanel() {
                 </button>
 
                 <p className="dbg-note">
-                  左边那个数是这份提纲的整体质量分：样本量、方法名、出处、
-                  干预轮次这些支撑结论的东西，写清楚了没有。数字是人工标的，
-                  标完都用真模型跑过一遍，跟报告里的纵轴对得上。
+                  左边那个数是这份提纲的总体评分，跟报告顶部那个数<b>同一个公式</b>算的：
+                  每条主张（100 − 别人做过）× 0.5 + 答得上来 × 0.5，再取平均。
+                  四条都用真模型跑过，49 / 43 / 34 / 16，从能过到过不了。
                   点一下只填进输入框，不会自动开始诊断 —— 连点「随机凑一段」
                   每次都不一样，用来验证「文字通顺但没证据」的提纲不会被夸成好选题。
                 </p>
@@ -769,7 +769,7 @@ export default function DebugPanel() {
                   <button
                     key={sample.name}
                     type="button"
-                    className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${sample.quality} dbg-action-instant`}
+                    className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${qualityBand(sample.quality)} dbg-action-instant`}
                     onClick={() => requestInstantResult(index)}
                     title={sample.note}
                   >

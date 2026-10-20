@@ -63,6 +63,38 @@ const WEIGHT_SOURCE = 25;
 const WEIGHT_SPECIFIC = 15;
 
 /**
+ * 整份提纲里的证据，能借多少给单条主张。
+ *
+ * ## 为什么需要借
+ *
+ * 一份 600 字的开题提纲，样本量、方法名、量表出处通常只写在**其中一两句话**里：
+ * 「采用准实验设计，两个平行班各 64 人」「评分者一致性 Kappa 为 0.82」。
+ * 但 L1 抽出来的主张是**逐句切的**，于是另外六条主张的「有没有数字」全拿 0 分 ——
+ * 用户明明写了样本量，算法却认为他答不上来。
+ *
+ * 实测那份提纲：8 条主张里有 6 条纵轴不到 12 分，
+ * 而整份提纲本身的证据分是 100。这不是用户写得差，是**证据的粒度算错了**。
+ *
+ * ## 为什么打五折
+ *
+ * 提纲里有，不等于这条主张自己说得清。老师指着第三条问「你这个样本多少人」，
+ * 你答得上来（提纲里写过），但你得先想起来它在第六段 —— 这比张口就来差一档。
+ * 折扣就是把这一档差写进分数里。
+ *
+ * 0.5 是拿两份真实提纲试出来的：不打折会把「最该改」清空（八条全变灰），
+ * 打三折几乎不起作用（还是六条红）。具体见 scripts/check-evidence.mjs 第 [8] 组。
+ *
+ * ## 为什么「说得具体吗」不借
+ *
+ * 那个维度问的是「这句话本身够不够具体」。借提纲的分等于给一句空话灌水 ——
+ * 提纲写得再细，也不能证明这句「要提升学生能力」不是空话。
+ */
+export const OUTLINE_DISCOUNT = 0.5;
+
+/** 只有这三个维度可以从整份提纲借分。 */
+const TRANSFERABLE_DIMENSIONS = ["有没有数字", "有没有方法", "有没有出处"];
+
+/**
  * 数字证据：带单位的数字才算。
  *
  * 为什么不认所有数字：`2024 年`「第 3 轮」里的数字是时间标记，不是样本量。
@@ -307,8 +339,13 @@ function scoreSpecific(text: string): DimensionHit {
  *
  * 输入只有主张原文 —— 不看模型、不看检索结果。
  * 这是刻意的：证据分要能独立复算，用户拿同一句话自己数一遍也该得到同一个分。
+ *
+ * `outline` 是可选的：给了就允许从整份提纲借分（见 OUTLINE_DISCOUNT）。
+ * 为什么做成可选参数而不是必填：
+ * 老调用方（自检脚本里大量 `evidenceOf(claim)`）算的还是"这句话自己有多少证据"，
+ * 那是另一个有意义的问题，不该因为新功能而消失。
  */
-export function evidenceOf(claim: Claim): EvidenceResult {
+export function evidenceOf(claim: Claim, outline?: string): EvidenceResult {
   const text = claim.text ?? "";
 
   const dimensions = [
@@ -317,6 +354,26 @@ export function evidenceOf(claim: Claim): EvidenceResult {
     scoreSource(text),
     scoreSpecific(text),
   ];
+
+  // 整份提纲的四个维度，只在需要借分时算一次
+  const outlineDimensions =
+    outline && outline.trim().length > 0 ? dimensionsOfText(outline) : null;
+
+  if (outlineDimensions) {
+    for (const dimension of dimensions) {
+      if (!TRANSFERABLE_DIMENSIONS.includes(dimension.name)) continue;
+      const donor = outlineDimensions.find((d) => d.name === dimension.name);
+      if (!donor) continue;
+      if (donor.score <= dimension.score) continue;
+
+      // 借来的分只能补到「折扣之后」的高度，不能超过提纲本身的水平
+      const borrowed = Math.round(donor.score * OUTLINE_DISCOUNT);
+      if (borrowed <= dimension.score) continue;
+
+      dimension.score = borrowed;
+      dimension.hits = [...dimension.hits, ...donor.hits.map((hit) => `提纲里有：${hit}`)];
+    }
+  }
 
   const weights = [WEIGHT_NUMBER, WEIGHT_METHOD, WEIGHT_SOURCE, WEIGHT_SPECIFIC];
   const total = dimensions.reduce(
@@ -336,6 +393,11 @@ export function evidenceOf(claim: Claim): EvidenceResult {
   }
 
   return { score, dimensions, reason };
+}
+
+/** 只算四个维度，不做借分。给 evidenceOf 借分时当供体用。 */
+function dimensionsOfText(text: string): DimensionHit[] {
+  return [scoreNumbers(text), scoreMethod(text), scoreSource(text), scoreSpecific(text)];
 }
 
 /* ---------------------------------------------------------------

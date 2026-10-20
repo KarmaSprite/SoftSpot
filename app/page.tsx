@@ -6,6 +6,7 @@ import SoftSpotMap from "@/components/SoftSpotMap";
 import ClaimTable from "@/components/ClaimTable";
 import QuestionList from "@/components/QuestionList";
 import HomeGround from "@/components/HomeGround";
+import OverallScore from "@/components/OverallScore";
 import ResetDialog from "@/components/ResetDialog";
 import { SITE } from "@/lib/config";
 import { parseManualRefs } from "@/lib/manual";
@@ -194,6 +195,12 @@ export default function Home() {
         elapsedMs: payload.elapsedMs,
         costYuan: payload.costYuan,
         totalTokens: payload.usage.totalTokens,
+        /*
+          冻结数据里存的是当时的原始警告，一条主张一条 ——
+          那份数据一字未改，是这次真跑的凭据。
+          但摊到屏幕上要跟真接口一样先合一次，
+          否则同一件事在两处显示成两种样子（真跑是 1 行，录像 6 行）。
+        */
         warnings: payload.warnings,
         scoresArePlaceholder: payload.scoresArePlaceholder,
         blindClaimIds: payload.blindClaimIds,
@@ -533,6 +540,18 @@ export default function Home() {
               共抽出 {result.claims.length} 条主张、{result.questions.length}{" "}
               个问题。先看哪些是你站得住的地方，再看哪几条最危险。
             </p>
+
+            {/*
+              总分放在所有东西最上面，包括「你的主场」。
+              理由很简单：用户第一眼想知道的不是"我哪儿好"，是"我这份行不行"。
+              把总分压在下面，他得先读完三块内容才看到结论，
+              中途就已经开始焦虑了。
+            */}
+            <OverallScore
+              claims={result.claims}
+              blindClaimIds={meta?.blindClaimIds ?? []}
+              placeholder={meta?.scoresArePlaceholder ?? false}
+            />
 
             {/*
               录像要自报家门。

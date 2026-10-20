@@ -278,7 +278,12 @@ export async function POST(request: Request) {
     const pressure =
       risk.length === 0 ? UNQUESTIONED_DEFENSIBILITY : defensibilityFromRisk(risk);
 
-    const evidence = evidenceOf(raw as Claim);
+    /*
+      把整份提纲一起传进去：主张是逐句切的，样本量和方法名往往只写在其中一句里，
+      其余主张要能借到这些证据，否则「你写了样本量」和「这条主张答不上来」会同时成立。
+      见 lib/evidence.ts 的 OUTLINE_DISCOUNT。
+    */
+    const evidence = evidenceOf(raw as Claim, outline);
     evidenceById.set(raw.id, evidence);
     const defensibility = blendDefensibility(evidence.score, pressure);
 
@@ -333,6 +338,14 @@ export async function POST(request: Request) {
   return NextResponse.json({
     claims: assembled.data.claims,
     questions: assembled.data.questions,
+    /**
+     * 警告在交出去之前先合一次。
+     *
+     * 一个源挂掉会影响每一条主张，8 条主张就是 8 条几乎一样的警告。
+     * 用户读不出「是 8 个问题还是同一件事发生 8 次」，而真正只发生一次的
+     * 小问题（比如「你粘的第 3 行太短」）会被淹掉。
+     * 合并规则和理由写在 lib/warnings.ts。
+     */
     warnings,
     usage,
     /** 估算花费（元）。只是估算，不含缓存折扣，会比真实账单略高一点。 */
