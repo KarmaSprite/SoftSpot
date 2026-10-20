@@ -6,6 +6,8 @@ import SoftSpotMap from "@/components/SoftSpotMap";
 import ClaimTable from "@/components/ClaimTable";
 import QuestionList from "@/components/QuestionList";
 import HomeGround from "@/components/HomeGround";
+import { SITE } from "@/lib/config";
+import { parseManualRefs } from "@/lib/manual";
 import type { AnalysisResult, Claim, Question } from "@/lib/types";
 
 /**
@@ -36,6 +38,13 @@ type AnalyzeResponse = {
    * 不是"没人做过"。客户端必须把它们单独摆出来，不能当 0 分画进图里。
    */
   blindClaimIds: string[];
+  /**
+   * 你粘的中文文献，最后真的认出来几条。
+   * 0 有两种可能：没粘，或者粘了但一条都没认出来 —— 后者要靠 warnings 区分。
+   */
+  manualRefCount: number;
+  /** 这个功能当前开没开（站长开关）。服务端关了的话，前端传上去的内容会被忽略。 */
+  manualRefsEnabled: boolean;
   elapsedMs: number;
 };
 
@@ -47,10 +56,13 @@ type Meta = {
   warnings: string[];
   scoresArePlaceholder: boolean;
   blindClaimIds: string[];
+  manualRefCount: number;
 };
 
 export default function Home() {
   const [outline, setOutline] = useState("");
+  const [manualText, setManualText] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +70,19 @@ export default function Home() {
 
   const count = outline.trim().length;
   const canSubmit = count > 0 && !loading;
+
+  /**
+   * 边打字边数「认出来几条」。
+   *
+   * 用的是后端同一个函数（lib/manual.ts），不是前端另写一套 ——
+   * 两套解析规则早晚会不一致，那时用户会看到「页面说 3 条，报告说 2 条」。
+   *
+   * 为什么只显示条数、不显示解析警告：
+   * 打字的中间状态本来就「太短」（"中职导游"才 4 个字），
+   * 每敲一个字弹一条"有 1 行太短"，用户会以为功能坏了。
+   * 警告留到提交后，由服务端一次性告诉你。
+   */
+  const manualCount = parseManualRefs(manualText).refs.length;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -77,7 +102,16 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outline }),
+        body: JSON.stringify({
+          outline,
+          /**
+           * 开关关掉时传空串，而不是不传这个字段。
+           *
+           * 后端本来也会忽略（它自己判一次开关），这里再判一次是为了
+           * 「前端藏起来的东西不会被顺手带上去」—— 少一条能解释清楚的路径。
+           */
+          manualRefs: SITE.manualRefs ? manualText : "",
+        }),
       });
 
       /**
@@ -108,6 +142,7 @@ export default function Home() {
          * 总比拿 undefined 去 .length 报错强。
          */
         blindClaimIds: data.blindClaimIds ?? [],
+        manualRefCount: data.manualRefCount ?? 0,
       });
     } catch (e) {
       /**
@@ -151,6 +186,64 @@ export default function Home() {
           placeholder="例：本研究针对高职院校学生英语口语练习机会不足的问题，拟采用大语言模型构建一个随时可用的对话陪练系统，通过语音识别与生成技术实现实时纠错……"
           spellCheck={false}
         />
+
+        {/*
+          手工文献入口。
+          整个块用 SITE.manualRefs 包着：开关一关，这里连 DOM 都不渲染，
+          页面上不会留下一个空壳。
+        */}
+        {SITE.manualRefs && (
+          <div className="manual-panel">
+            <button
+              type="button"
+              className="manual-toggle"
+              onClick={() => setManualOpen((v) => !v)}
+              aria-expanded={manualOpen}
+              aria-controls="manual-refs"
+            >
+              <span className="manual-toggle-mark" aria-hidden="true">
+                {manualOpen ? "−" : "+"}
+              </span>
+              已经有中文文献了？粘进来一起算
+              {/*
+                收起状态下把条数露在外面，是为了让"我粘过了"这件事一直可见。
+                不然用户收起面板跑一次，回来会怀疑自己到底粘没粘。
+              */}
+              {!manualOpen && manualCount > 0 && (
+                <span className="manual-badge">{manualCount} 条</span>
+              )}
+            </button>
+
+            {manualOpen && (
+              <div className="manual-body">
+                <p className="manual-hint">
+                  一行一条。标题和期刊用逗号隔开就行，年份写不写都认。
+                  这些文献只用来回答「这个想法别人做过吗」，不参与「你答不答得上」。
+                </p>
+                <textarea
+                  id="manual-refs"
+                  className="manual-textarea"
+                  value={manualText}
+                  onChange={(e) => setManualText(e.target.value)}
+                  placeholder={
+                    "例：\n短视频教学在中职旅游专业中的应用, 中国职业技术教育, 2023\n中职导游专业普通话表达训练研究, 职业教育研究, 2022"
+                  }
+                  spellCheck={false}
+                  rows={6}
+                />
+                <p
+                  className={
+                    manualCount > 0 ? "manual-count manual-count-on" : "manual-count"
+                  }
+                >
+                  {manualCount > 0
+                    ? `已识别 ${manualCount} 条`
+                    : "还没认出文献。一行一条，标题至少 6 个字。"}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="panel-foot">
           <span className="counter">
@@ -231,6 +324,17 @@ export default function Home() {
                 <dt>token</dt>
                 <dd>{meta.totalTokens.toLocaleString("zh-CN")}</dd>
               </div>
+              {/*
+                只在真认出来东西时才显示这一格。
+                粘了 3 行认出 0 条，这里显示"0 条"等于给用户一个"我失败了"的结论，
+                而真正的原因（标题太短 / 格式不对）在下面的黄色警告里说。
+              */}
+              {meta.manualRefCount > 0 && (
+                <div>
+                  <dt>你粘的文献</dt>
+                  <dd>{meta.manualRefCount} 条</dd>
+                </div>
+              )}
             </dl>
           )}
 

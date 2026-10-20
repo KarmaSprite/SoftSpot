@@ -44,3 +44,7 @@ next-env.d.ts
 
 # 本地详细计划：记录每一步的卡点和踩过的坑，给评委看的简版是 plan.md
 plan.local.md
+
+# dev server 日志：本地排查用，不该进仓库
+dev.log
+dev.err.log

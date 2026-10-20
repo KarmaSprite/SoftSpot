@@ -2505,3 +2505,120 @@ textarea {
     border-bottom: 1px solid var(--line-soft);
   }
 }
+
+/* ---------- 16. 手工文献面板 ---------- */
+
+/*
+   为什么做成折叠的：
+   这个功能只对「已经知道自己专业里有谁做过什么」的人有用，不是每个人都需要。
+   常驻一个 6 行高的输入框，会把主输入框挤到下面去，
+   而主输入框才是每个用户都必须填的那一个。
+   折叠起来只剩一行字，需要的人自己点开。
+*/
+
+.manual-panel {
+  margin-top: var(--gap-md);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-control);
+  background: var(--sunken);
+}
+
+/*
+   虚线边框是故意的：它跟上面那个实线的主输入框不一样，
+   一眼能看出「这是可选的」。实线框会让用户以为也得填。
+*/
+
+.manual-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.manual-toggle:hover {
+  color: var(--ink);
+}
+
+.manual-toggle-mark {
+  flex: none;
+  width: 14px;
+  color: var(--muted);
+  font-size: var(--fs-base);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* 收起状态下露在外面的「N 条」，用强调色的浅底，跟正文区分开 */
+.manual-badge {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.manual-body {
+  padding: 0 14px 12px;
+}
+
+.manual-hint {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+}
+
+/*
+   等宽字体：用户粘进来的是数据（标题 / 期刊 / 年份）。
+   一行一条对齐着看，比比例字体更容易发现哪行粘歪了。
+   行高给到 1.9，是因为这里一行可能很长，挤在一起会串行。
+*/
+.manual-textarea {
+  display: block;
+  width: 100%;
+  min-height: 108px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.manual-textarea::placeholder {
+  color: var(--faint);
+}
+
+.manual-textarea:focus {
+  border-color: var(--accent);
+}
+
+.manual-count {
+  margin-top: 6px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+   认出东西来了才变绿。
+   一直绿等于这个颜色没在说话 —— 状态色只在状态变化时才有信息量。
+*/
+.manual-count-on {
+  color: var(--good);
+}
