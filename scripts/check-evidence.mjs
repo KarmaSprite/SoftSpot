@@ -80,6 +80,30 @@ console.log("\n[1] 有没有数字：带单位的才算");
 
   const chinese = evidenceOf(claim("挑选三个班级"));
   check("中文数字也认", dim(chinese, "有没有数字") === 40, String(dim(chinese, "有没有数字")));
+
+  /*
+     序数不是样本量：「第一轮」「第 3 次」讲的是顺序，一个人都没有。
+     这条 bug 是这么来的 —— 有人的提纲写「第一轮录播、第二轮弹幕、
+     第三轮跟播」，三轮不同的干预被数成三处样本量，数字维度直接满分。
+  */
+  const ordinal = evidenceOf(claim("第一轮录播回放，第二轮弹幕模拟，第三轮企业真实直播间跟播"));
+  check("「第一轮/第二轮/第三轮」不算数字", dim(ordinal, "有没有数字") === 0, String(dim(ordinal, "有没有数字")));
+
+  const ordinalNum = evidenceOf(claim("第 3 次访谈之后开始调整"));
+  check("「第 3 次」不算数字", dim(ordinalNum, "有没有数字") === 0, String(dim(ordinalNum, "有没有数字")));
+
+  const ordinalWeek = evidenceOf(claim("第 2 周开始干预，共 6 周"));
+  check("「第 2 周」不算，后面「6 周」照算 → 40 分", dim(ordinalWeek, "有没有数字") === 40, String(dim(ordinalWeek, "有没有数字")));
+
+  const ordinalFirst = evidenceOf(claim("第一名的成绩提升了"));
+  check("「第一名」不算数字", dim(ordinalFirst, "有没有数字") === 0, String(dim(ordinalFirst, "有没有数字")));
+
+  /*
+     反向断言：治「第」不能误伤「轮」。
+     「三轮干预」「每轮 6 周」是真样本量和真时长，必须照旧算。
+  */
+  const realRounds = evidenceOf(claim("两班 96 人三轮干预，每轮 6 周"));
+  check("「三轮干预」「每轮 6 周」照旧算数字", dim(realRounds, "有没有数字") === 100, String(dim(realRounds, "有没有数字")));
 }
 
 /* ---------------------------------------------------------------
