@@ -19,7 +19,7 @@
 
 "use client";
 
-import { SCORE_FORMULA_TEXT, overallScore } from "@/lib/score";
+import { SCORE_FORMULA_TEXT, SCORE_SCALE_TEXT, overallScore } from "@/lib/score";
 import type { Claim } from "@/lib/types";
 
 type Props = {
@@ -58,6 +58,7 @@ export default function OverallScore({ claims, blindClaimIds = [], placeholder }
       <div className="overall-side">
         <p className="overall-reason">{result.reason}</p>
         <p className="overall-formula">{SCORE_FORMULA_TEXT}</p>
+        <p className="overall-formula overall-scale">{SCORE_SCALE_TEXT}</p>
       </div>
     </section>
   );

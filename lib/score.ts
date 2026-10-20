@@ -10,19 +10,29 @@
  *
  * 现在这个数从报告自己的数据算出来，算法写在界面上，谁都能验算。
  *
- * ## 公式
+ * ## 两层：原始分和显示分
+ *
+ * 原始分（rawClaimScore）：
  *
  *   每条主张 = (100 - 别人做过) × 0.5 + 答得上来 × 0.5
  *   总分     = 所有主张的平均，四舍五入
  *
- * 为什么两项各占一半：
- *   这是一张二维地图，两个轴本来就是平等的。
- *   只算纵轴，等于鼓励用户把选题写成没人做过的冷门方向；
- *   只算横轴，等于鼓励他把选题写到没人碰过的地方 —— 两种都是错的。
+ * 显示分（claimScore）= 把原始分按一条固定刻度换算一次。
  *
- * 为什么用 `100 - overlap`：
- *   overlap 高 = 别人做过了 = 这个选题的原创空间小，对用户不利。
- *   换算成「新」这一侧，两项才是同一个方向（越高越好），平均才有意义。
+ * ## 为什么原始分不能直接显示
+ *
+ * 原始分的 50 分**不代表「中等」**，它代表「两个轴都正好在中间」：
+ * 横轴 50 意味着最像的那篇论文跟你有一半的词重合，
+ * 纵轴 50 意味着有一半的质询你答不上来。两样都不算「还行」。
+ *
+ * 实测后果：两份把研究设计写到接近满分水平的提纲（样本量、仪器型号、
+ * 采样率、信度系数、统计模型全写了），纵轴能到 78，横轴却压在 51-57，
+ * 原始分只有 53-55。如果直接显示，用户会以为「我这么认真写也只有 55」，
+ * 而这个判断是错的 —— 那份提纲写得确实比大多数人好。
+ *
+ * 所以加一条刻度：原始 40 → 58、55 → 70、70 → 84。
+ * 它不是让测量变准，是把「原始分的刻度」翻译成「人能读懂的刻度」。
+ * 这一点在答辩时要老实说：**换的是刻度，不是测量。**
  *
  * ## 为什么不算查不到的那几条
  *
@@ -33,8 +43,13 @@
 
 import { QUADRANT_THRESHOLD } from "./quadrant.ts";
 
-/** 一条主张对总分的贡献（0-100）。 */
-export function claimScore(overlap: number, defensibility: number): number {
+/**
+ * 一条主张的原始分（0-100），不做刻度换算。
+ *
+ * 保留它并导出，是为了让「换刻度」这件事可被验证：
+ * 自检脚本能分别验原始公式和刻度曲线，出了问题一眼看出是哪一层。
+ */
+export function rawClaimScore(overlap: number, defensibility: number): number {
   /*
     先夹住再算。上游（检索层、证据层）理论上都吐 0-100，
     但总分是界面上最大的那个数字，它不能因为上游出一次 bug 就显示成 -20 分。
@@ -45,6 +60,71 @@ export function claimScore(overlap: number, defensibility: number): number {
 
   const novelty = 100 - safeOverlap;
   return Math.round((novelty + safeDefensibility) / 2);
+}
+
+/**
+ * 刻度换算的锚点：原始分 → 显示分。
+ *
+ * 取点依据（都是真实跑出来的原始分）：
+ *   16  → 20   只写了「我要研究什么」，没写怎么做（教育学·思辨那份）
+ *   34  → 48   有想法、有一点设计（文学·网络文学那份）
+ *   40  → 58   勉强算一份完整的开题
+ *   55  → 70   研究设计写得很细，但选题撞得比较多
+ *   70  → 84   又新又稳
+ *   100 → 100  两头都满分（现实中拿不到，留作上限）
+ *
+ * 中间线性插值。锚点写死，不做成可配置 ——
+ * 能调的分档等于没有分档，用户会一路调到让自己满意为止。
+ */
+const CALIBRATION: Array<[number, number]> = [
+  [0, 0],
+  [20, 25],
+  [40, 58],
+  [55, 70],
+  [70, 84],
+  [100, 100],
+];
+
+/** 把原始分按上面的锚点换算成显示分。 */
+export function calibrateScore(raw: number): number {
+  const clamped = Math.min(100, Math.max(0, raw));
+
+  for (let i = 1; i < CALIBRATION.length; i += 1) {
+    const [rawHigh, shownHigh] = CALIBRATION[i];
+    if (clamped > rawHigh) continue;
+
+    const [rawLow, shownLow] = CALIBRATION[i - 1];
+    const span = rawHigh - rawLow;
+    if (span <= 0) return Math.round(shownHigh);
+
+    const ratio = (clamped - rawLow) / span;
+    return Math.round(shownLow + ratio * (shownHigh - shownLow));
+  }
+
+  return Math.round(CALIBRATION[CALIBRATION.length - 1][1]);
+}
+
+/**
+ * 跟已有的某篇论文几乎一模一样时，显示分封顶。
+ *
+ * 为什么需要这个兜底：原始公式里「别人做过 100 + 答得上来 100」和
+ * 「没人做过 + 答不上来」都算 50 分。换刻度之后这两种都会变成 66 分，
+ * 于是「整段照抄一篇论文，只是把证据写全」会显示成「写得比较扎实」。
+ * 那是这套评分最不能犯的错 —— 它会给抄袭发一张合格证。
+ *
+ * 所以单独拦一道：横轴到 85 分以上，不管纵轴多高，显示分不超过 45。
+ * 85 这个数取的是「最像的那篇跟你八成以上的词重合」，正常选题撞不到，
+ * 撞到了就是同一篇东西。
+ */
+const COPIED_OVERLAP = 85;
+const COPIED_CAP = 45;
+
+/** 一条主张最终显示出来的分（0-100）。 */
+export function claimScore(overlap: number, defensibility: number): number {
+  const shown = calibrateScore(rawClaimScore(overlap, defensibility));
+  const safeOverlap = Math.min(100, Math.max(0, overlap));
+
+  return safeOverlap >= COPIED_OVERLAP ? Math.min(shown, COPIED_CAP) : shown;
 }
 
 export type OverallScore = {
@@ -64,11 +144,17 @@ export type OverallScore = {
   reason: string;
 };
 
-/** 分档。分界线取 30 / 50 / 70，写死，不做成可配置。 */
+/**
+ * 分档。
+ *
+ * 分界线 40 / 60 / 75 是按用户要的口径定的：
+ * 「写得好的落在 60-75，新颖而且扎实才 75 以上」。
+ * 写死，不做成可配置。
+ */
 const BANDS: Array<{ min: number; verdict: string }> = [
-  { min: 70, verdict: "准备得比较扎实" },
-  { min: 50, verdict: "大部分能答上来" },
-  { min: 30, verdict: "有底子，但软肋明显" },
+  { min: 75, verdict: "新颖而且扎实" },
+  { min: 60, verdict: "写得比较扎实" },
+  { min: 40, verdict: "有底子，但软肋明显" },
   { min: 0, verdict: "现在去答辩会很吃力" },
 ];
 
@@ -142,4 +228,14 @@ export function overallScore(
  * 一个说不清来源的分数，用户要么迷信要么无视，两种都没好处。
  */
 export const SCORE_FORMULA_TEXT =
-  "每条 =（100 − 别人做过）× 0.5 + 答得上来 × 0.5，再取平均。查不到的那几条不算。";
+  "每条 =（100 − 别人做过）× 0.5 + 答得上来 × 0.5，原始分再按一条固定刻度换算成显示分。查不到的那几条不算。";
+
+/**
+ * 刻度表，原样显示给用户，让他能自己验算。
+ *
+ * 为什么要摊出来：只写「按一条固定刻度换算」而不给刻度，
+ * 等于让用户相信一个他看不见的黑箱 —— 那和直接给个分数没有区别。
+ * 只挑四个中间锚点（0 和 100 太显然，20 那个点太靠底），
+ * 多了会变成一张没人读的表。
+ */
+export const SCORE_SCALE_TEXT = "刻度：原始 40 → 58 · 55 → 70 · 70 → 84（其余按比例插值）";

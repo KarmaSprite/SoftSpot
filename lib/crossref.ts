@@ -155,6 +155,71 @@ function parseAuthors(raw: unknown): string[] {
   return authors;
 }
 
+/**
+ * 这些 type 不是论文，是论文里的零件。
+ *
+ * 实测（拿方法论词当 query.bibliographic 去查）8 条结果里有 4 条是 component：
+ *
+ *   type=component | Table 5: Inter-rater reliability analysis.
+ *   type=component | Supplement 2. Leave-one-out cross-validation of the predictive model
+ *   type=component | Figure 5: Model performance of test dataset
+ *
+ * 这些是论文内部的表格和附录。Crossref 给它们单独发了 DOI，所以是合法记录，
+ * 但它们不是「有人做过这个研究」，是「某篇论文里有一张表」。
+ *
+ * 为什么必须挡掉：它们的标题里全是方法论词（inter-rater reliability、
+ * leave-one-out cross-validation），跟「我打算用这个方法」这类主张共有词特别多，
+ * 于是拿到很高的相似度。实测某条主张的最像记录就是「Table 5: Inter-rater
+ * reliability analysis.」—— 年份空、期刊空，却把这条主张从 46 分顶到 66 分，
+ * 还白送了「4 篇沾边」的广度加分。
+ *
+ * 这是横轴虚高的一个真实来源，也是纯 bug：一张表格不能证明别人做过你的研究。
+ */
+const NON_PAPER_TYPES = new Set([
+  "component",
+  "reference-entry",
+  "peer-review",
+  "grant",
+  "dataset",
+  "journal-issue",
+  "journal-volume",
+  "report-component",
+  "standard",
+]);
+
+/**
+ * 第二道网：有些碎片记录的 type 标得不对，但标题一看就是零件。
+ *
+ * 要求「表/图/附录」这类词后面紧跟数字，避免误伤
+ * 「Figure and Ground in Visual Perception」这种真论文标题。
+ */
+const FRAGMENT_TITLE =
+  /^(?:table|figure|fig\.?|supplement(?:al|ary)?|appendix|scheme|chart|box)\b[\s.:]*\d/i;
+
+/**
+ * 这条记录像不像一篇论文。
+ *
+ * 两道判定：type 不在黑名单里，且标题不是表格/附录碎片。
+ * 不要求有期刊名或年份 —— 预印本本来就可能只有年份没有期刊，
+ * 那是合法的论文，不该被当成碎片扔掉。
+ *
+ * 导出是为了能被自检脚本直接调用：这条规则只跟记录的形状有关，
+ * 不需要联网就能验，不该塞进那个要真查 Crossref 的脚本里。
+ */
+export function looksLikePaper(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const item = raw as Record<string, unknown>;
+
+  const type = typeof item.type === "string" ? item.type.trim().toLowerCase() : "";
+  if (NON_PAPER_TYPES.has(type)) return false;
+
+  const title = firstString(item.title);
+  if (!title) return false;
+  if (FRAGMENT_TITLE.test(title)) return false;
+
+  return true;
+}
+
 /** 把一条 item 解析成 CrossrefHit。缺 DOI 或标题就返回 null。 */
 function parseItem(raw: unknown): CrossrefHit | null {
   if (!raw || typeof raw !== "object") return null;
@@ -261,9 +326,12 @@ export async function searchCrossref(
   /*
      只查 select 里这几列，不拉整个记录。
      Crossref 单条完整记录可能有几十 KB（含参考文献列表），
-     拉 5 条就几百 KB，而我们只需要六个字段。
+     拉 5 条就几百 KB，而我们只需要这几个字段。
+
+     type 是第 25 步加的：没有它就分不出「一篇论文」和「某篇论文里的一张表」，
+     而后者会把横轴分数抬高一整档（见 NON_PAPER_TYPES 的注释）。
   */
-  const select = ["DOI", "title", "author", "published", "container-title"].join(",");
+  const select = ["DOI", "title", "author", "published", "container-title", "type"].join(",");
 
   const url =
     `${CROSSREF_ENDPOINT}?query.bibliographic=${encodeURIComponent(trimmed)}` +
@@ -306,13 +374,36 @@ export async function searchCrossref(
   const totalResults = typeof msg["total-results"] === "number" ? msg["total-results"] : 0;
 
   const hits: CrossrefHit[] = [];
+  let dropped = 0;
+
   for (const item of items) {
+    /*
+       先判是不是论文，再解析字段。
+       顺序很重要：碎片记录也可能有 DOI 和标题，parseItem 会照收，
+       所以不能靠 parseItem 返回 null 来过滤。
+    */
+    if (!looksLikePaper(item)) {
+      dropped += 1;
+      continue;
+    }
+
     const hit = parseItem(item);
     if (hit) {
       hits.push(hit);
     } else {
       warnings.push("Crossref 返回了 1 条缺 DOI 或标题的记录，已跳过");
     }
+  }
+
+  /*
+     挡掉了几条要说出来。
+     不说的话，用户看到「5 条里只回来 1 条」会以为是网络问题；
+     说出来他才知道是 Crossref 把论文里的表格也编了号。
+  */
+  if (dropped > 0) {
+    warnings.push(
+      `Crossref 回来的 ${items.length} 条里有 ${dropped} 条是论文里的表格或附录（不是论文本身），已跳过`,
+    );
   }
 
   return { ok: true, hits, totalResults, warnings };

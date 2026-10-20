@@ -5,6 +5,11 @@
 贴上论文提纲，给你一张软肋地图和一份质询清单。
 
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+[![Next.js](https://img.shields.io/badge/Next.js-15.5-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A518.18-5fa04e?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Commits](https://img.shields.io/github/commit-activity/t/KarmaSprite/pre-defense?label=Commits&color=5aa9ff)](https://github.com/KarmaSprite/pre-defense/commits/main)
+[![Stars](https://img.shields.io/github/stars/KarmaSprite/pre-defense?label=Stars&color=f5c518)](https://github.com/KarmaSprite/pre-defense/stargazers)
 
 > 在你还能改的时候，告诉你哪儿会被问倒。
 
@@ -137,7 +142,7 @@ npm run dev
 
 ### 你应该看到什么
 
-1. **报告最上面是总体评分** —— 49 分，判词「有底子，但软肋明显」。这个分数不是纵轴平均，是每条 `（100 − 别人做过）× 0.5 + 答得上来 × 0.5` 再取平均。
+1. **报告最上面是总体评分** —— 65 分，判词「写得比较扎实」。这个分数不是纵轴平均，是每条 `（100 − 别人做过）× 0.5 + 答得上来 × 0.5` 算出原始分，再按一条固定刻度换算成显示分，最后取平均。刻度表就写在报告里，可以自己验算。
 2. **「你的主场」有一条** —— 第 5 条「采用滞后序列分析（lag sequential analysis）识别行为模式」（横轴 45、纵轴 57）。它既新又答得上来，因为写的是这套研究独有的操作细节，文献里不会有一模一样的一份。
 3. **软肋地图** —— 8 个点，横轴 45-67、纵轴 49-61。一条落在「你的主场」角，其余散在右边和左下。
 4. **主张明细表** —— 每条主张的原文、类型（problem / method / expectation）、两个分数。
@@ -156,11 +161,11 @@ npm run dev
 npm run check
 ```
 
-这个命令串起七个自检脚本（校验 / 解析 / 抽取 / 质询 / 证据 / 总分 / 警告合并），**全是纯代码，一个模型调用、一次网络请求都没有**，两秒跑完，不花钱。看到七个 `0 failed` 就说明打分、解析、校验这些逻辑都是对的。
+这个命令串起八个自检脚本（校验 / 解析 / 抽取 / 质询 / 证据 / 总分 / 警告合并 / Crossref 过滤），**全是纯代码，一个模型调用、一次网络请求都没有**，两秒跑完，不花钱。看到八个 `0 failed` 就说明打分、解析、校验这些逻辑都是对的。
 
 终端里会出现一行 `→ 调用模型失败：fetch failed` —— 那是自检故意用一个「假装断网」的假模型测错误处理，**不是失败**，后面紧跟着的 `18 passed, 0 failed` 才是结论。
 
-其余八个模块各有自己的自检（`npm run check:similarity`、`check:search`、`check:websearch`、`check:manual`、`check:nearest` 等），其中 `check:arxiv`、`check:crossref`、`check:retrieval` 会真的联网查一遍，跑之前知道一下。
+其余七个模块各有自己的自检（`npm run check:similarity`、`check:search`、`check:websearch`、`check:manual`、`check:nearest` 等），其中 `check:arxiv`、`check:crossref`、`check:retrieval` 会真的联网查一遍，跑之前知道一下。
 
 ### 生产构建
 
@@ -217,7 +222,7 @@ pre-defense/
 │  ├─ theme.ts                深色/浅色偏好的读取与记忆
 │  ├─ config.ts               站长开关
 │  └─ mock.ts                 早期假数据，现在没有任何地方引用它
-├─ scripts/                   自检脚本，每个模块一个，共 13 个
+├─ scripts/                   自检脚本，每个模块一个，共 16 个
 ├─ docs/
 │  └─ prompts.md              三条完整的 Prompt 链（含失败的那几轮）
 ├─ plan.md                    实施计划与逐步进度记录
@@ -238,13 +243,16 @@ pre-defense/
 | L3 组装：四象限、主场、报告（纯代码，不调模型） | 完成 |
 | 界面：散点图、主张表、问题清单、打印成 PDF、深色模式 | 完成 |
 
-真模型实测（2026-10-20，一份 274 字的中职短视频教学提纲）：
+真模型实测（2026-10-20，就是上面「十分钟复现」里那份 610 字的提纲）：
 
 - 8 条主张、16 个质询问题、17 次模型调用
-- 27,300 token，**0.0396 元**，**35.9 秒**出结果
-- 八个点的横轴分数 47–82、纵轴 0–24
+- 31,027 token，**0.044 元**，**46 秒**出结果
+- 八个点的横轴分数 45–67、纵轴 49–61
+- 总体评分 **65**，判词「写得比较扎实」
 
-纵轴这一段要说实话：这份提纲八条里有五条的纵轴是 0-2 分，因为提纲本身确实没写样本量、没写方法名、没引出处。**这不是算法没算开，是这份提纲真的没证据。** 同一套代码换一份写得更实的提纲（交代了「两班 96 人、三轮干预、每轮 6 周、行动研究法」），纵轴最高能到 57 —— 差别来自提纲，不来自算法。
+纵轴这一段要说实话：这份提纲把研究设计写到了接近满分的程度（两个平行班各 64 人、16 周、点击流 4 万余条、自编编码表 Kappa 0.82、UWES-S 中文版 α=0.89），纵轴因此能到 57-61。**换一份只写「我要研究什么」的提纲，同一套代码给出的纵轴是 2-19 分** —— 差别来自提纲，不来自算法。反过来，横轴压在 45-67 也不是算法保守：那几条方法主张确实撞上了 1997 年以来一批行动研究、准实验设计的论文，证据词和撞车词是同一批词。
+
+关于总体评分：原始分（两头各占一半再平均）在 40 附近只是「两个轴都正好在中间」，不代表中等水平。显示前会按一条写死在 `lib/score.ts` 里的刻度换算一次 —— 原始 40 → 58、55 → 70、70 → 84。**换的是刻度，不是测量**，刻度表就印在报告上，可以自己验算。另外有一条兜底：横轴到 85 分以上（等于整段照抄某篇论文），不管纵轴多高，显示分不超过 45。
 
 剩下的事：`plan.md` 阶段六里没打勾的那一项（演示视频脚本）。
 

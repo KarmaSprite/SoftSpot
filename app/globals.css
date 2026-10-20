@@ -3732,6 +3732,15 @@ textarea {
   line-height: 1.6;
 }
 
+/*
+   刻度表跟公式排在一起，但要能一眼看出是「另一行」而不是公式的续句。
+   只加 2px 上边距 + 一条极浅的分隔，不加分隔线 —— 这块已经很密了。
+*/
+.overall-scale {
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 600px) {
   .overall {
     flex-direction: column;

@@ -36,10 +36,10 @@ export type SampleOutline = {
    *
    * 这个数以前是人工标的「完成度」，标完之后用户在同一个屏幕上看到
    * 「90」配「六红一绿」，只会觉得系统自相矛盾 —— 那是我第一版设计错了。
-   * 现在它由 lib/score.ts 的公式算：每条主张（100 − 别人做过）× 0.5 + 答得上来 × 0.5，
-   * 再取平均，查不到的不算。
+   * 现在它由 lib/score.ts 算：每条主张（100 − 别人做过）× 0.5 + 答得上来 × 0.5，
+   * 再按固定刻度换算成显示分，最后取平均，查不到的不算。
    *
-   * 四条都用真模型跑过（2026-10-20，共 0.19 元），实测 50 / 43 / 34 / 18，
+   * 四条都用真模型跑过（2026-10-20），按新刻度重算是 65 / 60 / 48 / 21，
    * 单调递减，正好铺开「从能过到过不了」的整条区间。
    * 改任何一条提纲的正文，都必须重跑一遍改这个数 ——
    * 一个没跟着算法走的分数，比没有分数更糟。
@@ -73,7 +73,7 @@ export function requestFillOutline(text: string): void {
 /* ---------- 四条预设 ---------- */
 
 /**
- * 90 分档。实测：7 条主张，纵轴最高 70，**2 条落在「你的主场」**。
+ * 65 分档。实测：7 条主张，纵轴最高 72，**至少 1 条落在「你的主场」**。
  *
  * 这是四条里唯一能演示出主场的一条，所以放在第一个。
  * 它为什么能进主场：末两条方法主张把「怎么编码、信度多少、量表是哪一版」
@@ -169,28 +169,28 @@ export const SAMPLE_OUTLINES: SampleOutline[] = [
     note: "研究设计写得很完整：样本量、点击流条数、编码信度、量表出处都有 —— 能跑出主场",
     /*
       这个数字和「离线示例」里那份冻结报告用的是同一次测量的结果。
-      同一份提纲在两处显示成 49 和 51 两个数，用户只会觉得有一处算错了。
+      同一份提纲在两处显示成两个数，用户只会觉得有一处算错了。
       模型每次跑出来的主张会差一两条，所以这里认冻结那份为准。
     */
-    quality: 49,
+    quality: 65,
     text: LEARNING_ANALYTICS,
   },
   {
     name: "管理学·数字营销",
     note: "有方法名（问卷 + 半结构化访谈），但样本是「若干家企业」，落不到数上",
-    quality: 43,
+    quality: 60,
     text: DIGITAL_MARKETING,
   },
   {
     name: "文学·网络文学",
     note: "只有「文本细读法」，没有样本、没有出处，靠理论框架撑",
-    quality: 34,
+    quality: 48,
     text: WEB_NOVEL,
   },
   {
     name: "教育学·思辨",
     note: "纯观点和体会，方法名是「文献研究法」，最容易被追问「你怎么知道」",
-    quality: 16,
+    quality: 21,
     text: CURRICULUM_THOUGHT,
   },
 ];
@@ -212,8 +212,8 @@ export const SAMPLE_OUTLINES: SampleOutline[] = [
 export type QualityBand = "high" | "mid" | "low";
 
 export function qualityBand(quality: number): QualityBand {
-  if (quality >= 45) return "high";
-  if (quality >= 30) return "mid";
+  if (quality >= 60) return "high";
+  if (quality >= 40) return "mid";
   return "low";
 }
 
