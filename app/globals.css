@@ -3202,22 +3202,24 @@ textarea {
 }
 
 /*
-   右边两行按钮。
-   align-items: flex-end 让两行都靠右对齐 ——
-   「重新编辑」比上面两个短，靠左对齐的话它会跟「存成 PDF」的左边缘对齐，
-   看起来像三个按钮里有一个掉队了。
+   右边三个按钮，一行并排（第 24d 步改的）。
+
+   之前是竖着两行：「存成 PDF / 重置」一行、「重新编辑」一行。
+   当时的理由是「前两个对报告做事，第三个回去改提纲，不该混在一起」。
+   但位置并没有把这个区别讲明白，只让右边缺了一块角 ——
+   标题和按钮之间空出一片，看起来像没排完。
+   区别现在靠颜色讲：存成 PDF 强调色描边、重置平时灰 hover 才红。
+
+   flex-shrink: 0 让它在标题很长时也不被压扁 ——
+   按钮被压到只剩一个字宽，比换行更难看。
 */
 .report-tools {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.report-tools-row {
-  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--gap-sm);
+  flex-shrink: 0;
 }
 
 /*
@@ -3374,15 +3376,10 @@ textarea {
   display: none;
 }
 
-.outline-brief > summary::before {
-  content: "▸ ";
-  display: inline-block;
-  transition: transform 0.15s ease;
-}
-
-.outline-brief[open] > summary::before {
-  content: "▾ ";
-}
+/*
+   箭头（▸）的样式和展开时的旋转写在第 21 节 ——
+   第 24d 步把它从「换字符」改成了「转角度」，跟展开动画放在一起讲。
+*/
 
 .outline-brief > summary:hover {
   color: var(--ink);
@@ -4025,6 +4022,136 @@ textarea {
   }
 
   .row-caret {
+    transition: none;
+  }
+}
+
+/* ---------- 21. 提纲摘要的展开动画与就地编辑 ---------- */
+
+/*
+   第 24d 步：摘要展开要有过程，不要「啪」一下跳出来。
+
+   为什么可以做成真高度动画：
+   <details> 的内容以前在 CSS 里根本够不着 —— 浏览器内部用一个
+   匿名盒子装它，没有选择器能选中。2024 年底起有了 ::details-content，
+   再加上 interpolate-size: allow-keywords（让 auto 能参与插值）
+   和 transition-behavior: allow-discrete（让 content-visibility
+   这种离散属性也能等），三样凑齐才能写出来。
+   实测本机 Edge 155 三个都支持，用 CSS.supports 验过才写的。
+
+   为什么不用 max-height 那套老办法：
+   max-height 要给一个死值，提纲八百字的话得写 2000px，
+   于是展开的前 70% 时间在演「从 2000 缩到 800」，看起来像卡了一下。
+   ::details-content 走的是真实高度，从 0 到 auto，任何长度都匀速。
+
+   为什么 content-visibility 也要过渡：
+   收起状态下内容是 content-visibility: hidden，不参与布局也不参与
+   Tab 顺序 —— 这是 <details> 自带的好行为，不能为了动画丢掉。
+   但它是个离散属性（hidden 或 visible，没有中间值），
+   必须配 transition-behavior: allow-discrete，否则它会在动画一开始
+   就瞬间切换，高度还没动，内容先冒出来了。
+*/
+.outline-brief {
+  interpolate-size: allow-keywords;
+}
+
+.outline-brief::details-content {
+  block-size: 0;
+  overflow: hidden;
+  content-visibility: hidden;
+  transition:
+    block-size 0.26s ease,
+    content-visibility 0.26s ease;
+  transition-behavior: allow-discrete;
+}
+
+.outline-brief[open]::details-content {
+  block-size: auto;
+  content-visibility: visible;
+}
+
+/*
+   箭头改成转角度，不再换字符。
+   换字符（▸ → ▾）在动画里是「瞬间变成另一个字」，跟下面滑出来的内容
+   不同步；转 90 度是连续的，眼睛能跟上。
+   content 固定写 ▸，展开时旋转 —— 所以两条规则里 content 都是同一个字。
+*/
+.outline-brief > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  margin-right: 2px;
+  transition: transform 0.2s ease;
+}
+
+.outline-brief[open] > summary::before {
+  content: "▸";
+  transform: rotate(90deg);
+}
+
+/*
+   就地编辑的输入框。
+   跟只读态的 <p> 保持同一套内边距、边框和底色，
+   切换的时候不会「跳一下」—— 用户点「重新编辑」，
+   看到的应该是同一块区域换了性质，而不是页面重排。
+*/
+.outline-brief-input {
+  display: block;
+  width: 100%;
+  max-height: 40vh;
+  margin: var(--gap-sm) 0 0;
+  padding: var(--gap-sm) var(--gap-md);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: 1.9;
+  resize: vertical;
+  outline: none;
+}
+
+/*
+   编辑态下面那一行：一句提示 + 重新诊断。
+   提示写「大概 30 秒」—— 这是实测值，不是「请稍候」那种废话。
+*/
+.result-bar-edit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--gap-md);
+  flex-wrap: wrap;
+}
+
+.result-bar-edit-hint {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+@media screen and (max-width: 600px) {
+  .result-bar-edit {
+    justify-content: space-between;
+  }
+}
+
+/*
+   打印：编辑框和重新诊断都不该出现在纸上。
+   摘要本身已经是 .no-print，这两个是它的附属，跟着一起藏。
+*/
+@media print {
+  .outline-brief-input,
+  .result-bar-edit {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outline-brief::details-content {
+    transition: none;
+  }
+
+  .outline-brief > summary::before {
     transition: none;
   }
 }

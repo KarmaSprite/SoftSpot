@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import SoftSpotMap from "@/components/SoftSpotMap";
 import ClaimTable from "@/components/ClaimTable";
@@ -125,6 +125,24 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  /**
+   * 「重新编辑」点开之后，提纲摘要在原地变成输入框。
+   *
+   * 为什么不跳回初始页（第 24d 步改的）：
+   * 点这个按钮的人，十有八九是「这一条我想改几个字再跑一遍」。
+   * 跳回去意味着整份报告消失、页面滚到顶、他要重新找光标 ——
+   * 而他只是想改一句话。就地改，报告还在下面，改完直接重跑。
+   */
+  const [editing, setEditing] = useState(false);
+
+  /**
+   * 就地编辑的那个 textarea。
+   *
+   * 为什么要拿到它的 DOM：展开动画结束、或者用户点按钮的那一刻，
+   * 光标必须已经在里面，否则他得自己再点一下才能打字。
+   * 那是两个动作，而这个按钮只承诺一个。
+   */
+  const briefInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const count = outline.trim().length;
   const canSubmit = count > 0 && !loading;
@@ -261,6 +279,14 @@ export default function Home() {
     setLoading(true);
     setError(null);
     /**
+     * 就地编辑态要在开跑之前退掉。
+     *
+     * 不退的话，下面 setResult(null) 会让整条吸顶栏卸载，
+     * 等新报告回来它又挂上，而 editing 还是 true ——
+     * 用户会看到新报告顶上又摊着一个输入框，以为没提交成功。
+     */
+    setEditing(false);
+    /**
      * 开跑之前先把上一份报告清掉。
      *
      * 不清的话，用户贴了新提纲点按钮，会看到旧报告还挂在那儿，
@@ -348,19 +374,36 @@ export default function Home() {
   }
 
   /**
-   * 回到输入页，但提纲留着。
+   * 就地改提纲，报告不消失。
    *
-   * 为什么不顺手清空提纲：
-   * 点「重新编辑」的人十有八九是「这一条我想改几个字再跑一遍」。
-   * 清空的话他得重新粘一遍，那这个按钮就等于「从头再来」，
-   * 而「从头再来」是另一个按钮（重置）的事 —— 两个按钮必须干不同的事，
-   * 否则用户永远不知道该点哪个。
+   * 第 24d 步之前这个按钮是「回到输入页」：清掉报告、滚到顶、露出输入卡片。
+   * 用户的反馈是「点重新编辑不会跳到初始页面，直接展开动画，然后可以编辑」——
+   * 对，跳页是把「改一句话」当成「重来一遍」在处理。
+   *
+   * 现在的行为：提纲摘要那一行原地展开成 textarea，
+   * 报告原封不动留在下面。改完点「重新诊断」才真正重跑。
+   * 再点一次这个按钮就收起来（按钮文字也跟着变），
+   * 因为「我只是想看一眼自己贴了什么」也是常见意图。
    */
   function handleReedit() {
-    setResult(null);
-    setMeta(null);
-    setError(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setEditing((v) => {
+      const next = !v;
+      if (next) {
+        /*
+          等 DOM 把 textarea 渲染出来再聚焦。
+          requestAnimationFrame 而不是 setTimeout：要的就是「下一帧」，
+          浏览器画完这一帧它就在了，不用猜一个毫秒数。
+        */
+        requestAnimationFrame(() => {
+          const el = briefInputRef.current;
+          if (!el) return;
+          el.focus();
+          // 光标放末尾：用户多半是想接着补一句，而不是从头改
+          el.setSelectionRange(el.value.length, el.value.length);
+        });
+      }
+      return next;
+    });
   }
 
   /**
@@ -376,6 +419,7 @@ export default function Home() {
     setResult(null);
     setMeta(null);
     setError(null);
+    setEditing(false);
     setResetOpen(false);
     window.scrollTo({ top: 0 });
   }
@@ -449,49 +493,106 @@ export default function Home() {
             <h2 className="block-title">诊断报告</h2>
 
             {/*
-              三个动作。
-              第一行是「存成 PDF」「重置」，第二行是「重新编辑」。
+              三个动作并排一行（第 24d 步改的）。
 
-              为什么「重新编辑」单独一行：它跟前两个不是一类事 ——
-              前两个是对这份报告做事（带走 / 丢掉），
-              它是离开这份报告回去改提纲。混在一行里三个等宽的按钮，
-              用户看不出哪个会让眼前的东西消失。
+              为什么不再分两行：
+              之前「存成 PDF」「重置」一行、「重新编辑」单独一行，
+              想表达「前两个是对报告做事，第三个是回去改提纲」。
+              但分两行并没有让人看懂这件事，反而让右边缺一块角、
+              标题和按钮之间空出一片，看起来像没排完。
+              分类不靠位置，靠颜色：存成 PDF 是强调色描边，
+              重置平时和重新编辑一样灰，只在悬停时变红。
+
+              为什么「重新编辑」不再是「回初始页」：
+              见 handleReedit 上面那段 —— 它现在就地展开成输入框。
             */}
             <div className="report-tools no-print">
-              <div className="report-tools-row">
-                <button
-                  type="button"
-                  className="result-btn is-primary"
-                  onClick={() => window.print()}
-                >
-                  存成 PDF
-                </button>
-                <button
-                  type="button"
-                  className="result-btn is-danger"
-                  onClick={() => setResetOpen(true)}
-                >
-                  重置
-                </button>
-              </div>
-              <div className="report-tools-row">
-                <button
-                  type="button"
-                  className="result-btn"
-                  onClick={handleReedit}
-                >
-                  重新编辑
-                </button>
-              </div>
+              <button
+                type="button"
+                className="result-btn is-primary"
+                onClick={() => window.print()}
+              >
+                存成 PDF
+              </button>
+              <button
+                type="button"
+                className="result-btn"
+                onClick={handleReedit}
+                aria-expanded={editing}
+                aria-controls="outline-brief-body"
+              >
+                {editing ? "收起" : "重新编辑"}
+              </button>
+              <button
+                type="button"
+                className="result-btn is-danger"
+                onClick={() => setResetOpen(true)}
+              >
+                重置
+              </button>
             </div>
           </div>
 
-          <details className="outline-brief no-print">
+          {/*
+            提纲摘要。
+            收起时是一行字（共 N 字），点开往下滑出全文 ——
+            第 24d 步给它加了真正的高度动画，见 CSS 第 18 节。
+
+            展开后如果是编辑态，正文换成 textarea，就地改。
+            为什么不用两个 <details>（一个看一个改）：
+            用户点「重新编辑」的时候，他本来就是从「看」切到「改」，
+            再多一次点击才能开始打字，等于把一步拆成两步。
+          */}
+          <details
+            className="outline-brief no-print"
+            open={editing || undefined}
+            onToggle={(e) => {
+              /*
+                用户自己点摘要收起来时，编辑态要跟着退。
+                不然会出现「摘要收着、按钮却写着『收起』」这种自相矛盾的状态。
+              */
+              if (!e.currentTarget.open && editing) setEditing(false);
+            }}
+          >
             <summary>
               提纲摘要 · 共 {count} 字
             </summary>
-            <p>{outline}</p>
+            {editing ? (
+              <textarea
+                id="outline-brief-body"
+                ref={briefInputRef}
+                className="outline-brief-input"
+                value={outline}
+                onChange={(e) => setOutline(e.target.value)}
+                spellCheck={false}
+                rows={8}
+                aria-label="就地修改提纲"
+              />
+            ) : (
+              <p id="outline-brief-body">{outline}</p>
+            )}
           </details>
+
+          {/*
+            改完得有个地方按下去。
+            只在编辑态出现：平时这里多一个按钮，等于在报告顶上
+            多摆一个「你还没改完」的暗示。
+          */}
+          {editing && (
+            <div className="result-bar-edit no-print">
+              <span className="result-bar-edit-hint">
+                改完点这里重跑一遍，大概 30 秒
+              </span>
+              <button
+                type="button"
+                className="result-btn is-primary"
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+              >
+                {loading ? "正在分析…" : "重新诊断"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
