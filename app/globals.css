@@ -2335,3 +2335,173 @@ textarea {
     gap: 4px var(--gap-xs);
   }
 }
+
+/* ---------- 15. 打印 / 存成 PDF ---------- */
+
+/*
+   为什么单独做一节：
+   学生看完报告，最自然的动作是「打印 / 存成 PDF 带去给导师看」。
+   不写这一节，直接 Ctrl+P 会印出输入框、三步说明、调试圆按钮，
+   还有一张四个角全白的软肋地图 —— 浏览器默认不打印背景色，
+   象限底色一没，地图就只剩几条线和几个点，读不出哪个角是哪个角。
+
+   三条原则：
+   1. 只印报告。工具类的东西（输入区、说明、调试面板）一律藏掉。
+   2. 该有的颜色必须有。象限底色、风险徽章、分数条都是信息，不是装饰。
+   3. 不许从中间劈开。一个问题卡片被切成两半，下半页就只剩几条勾。
+*/
+
+@page {
+  size: A4;
+  margin: 14mm 14mm 16mm;
+}
+
+@media print {
+  /*
+    打印一律走浅色。
+    深色模式是屏幕上的选择，印到白纸上会变成深灰底 + 反白字，
+    既费墨又难读。这里把 color-scheme 按回 light，
+    上面所有 light-dark() 变量就都取浅色那一支，不用逐个覆盖。
+  */
+  :root,
+  :root[data-theme="light"],
+  :root[data-theme="dark"] {
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: #ffffff;
+  }
+
+  /* 96px 底部留白是给滚动留的，纸上有 @page 的边距，不需要 */
+  .shell {
+    max-width: none;
+    padding: 0;
+  }
+
+  /*
+    .no-print 是给组件用的显式开关（调试面板挂了这个类），
+    其余按区块藏 —— 报告以外的东西印在纸上没有意义。
+  */
+  .no-print,
+  .panel,
+  .next-steps,
+  .alert-busy,
+  .alert-error {
+    display: none !important;
+  }
+
+  /*
+    例外：还没出报告就按了打印。
+    这时候把输入区留下，至少能看见自己贴的那段提纲，
+    否则打出来是一张白纸，用户会以为打印坏了。
+  */
+  body:not(:has(.report)) .panel {
+    display: block !important;
+  }
+
+  /* 报告就是整份文档的正文，不再需要顶上那道分隔线 */
+  .report {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .masthead {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+  }
+
+  /* 报告标题下面压一条线，看起来像一份文档而不是一张截屏 */
+  .report-title {
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  /*
+    print-color-adjust: exact 告诉浏览器「这些底色是内容，别省」。
+    默认的 economy 会把背景色整片丢掉，地图四个角就全白了。
+  */
+  .map,
+  .map-quad,
+  .map-tag,
+  .map-blind,
+  .map-blind-cap,
+  .spot-dot,
+  .spot-dot-blind,
+  .legend-dot,
+  .home-ground,
+  .home-loc,
+  .badge,
+  .claim-quad,
+  .score-bar,
+  .score-fill,
+  .risk-badge,
+  .question-no,
+  .alert-warn,
+  .question-card::before {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 纸宽有限（A4 减边距约 182mm），地图收一点，别一页只剩一张图 */
+  .map-block,
+  .map-row,
+  .map-row-blind {
+    max-width: 100%;
+  }
+
+  /*
+    板块之间的间距在纸上要收。
+    屏幕上一段一块隔 44px 是给眼睛喘气的，纸上一页就这么高，
+    44px 会把「软肋地图」这个标题顶到下一页开头，
+    前面留一大块空白。收到 24px 后板块标题正好跟着上一块走。
+  */
+  .report-head {
+    margin-top: 24px;
+  }
+
+  /*
+    地图宽度是量出来的，不是随手写的。
+    A4 减掉页边距后，一页能印的高度是 1009px（96dpi 下量出来的）。
+    「软肋地图」这个标题从第 492px 开始，标题占 53px，
+    留给整块地图（图 + 轴说明 + 图例）的只剩 446px。
+    560px 宽的地图整块高 628px，装不下，浏览器只能把整张图推到第二页 ——
+    实测第一页只填了 53%，下半页全白，看起来像打印漏了一页。
+    缩到 370px 后整块高 438px，正好落在剩下的空间里，
+    第一页填满 99%，总页数从 9 页降到 8 页。
+    再窄也不会更省页，只会让点挤在一起。
+  */
+  .map,
+  .map-row-blind .map {
+    max-width: 370px;
+  }
+
+  /* 悬停提示框在纸上永远不该出现 */
+  .spot-tip {
+    display: none !important;
+  }
+
+  /* 分页：标题不许孤零零留在页底 */
+  .report-title,
+  .report-head,
+  .home-ground-head {
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  /* 分页：一张卡片、一行表格、一条主场，都不许从中间劈开 */
+  .home-item,
+  .claim-table tr,
+  .question-card,
+  .map-block,
+  .report-footnote {
+    break-inside: avoid;
+  }
+
+  /* 纸上没有悬停高亮，靠一条底线把行分开 */
+  .claim-table tbody tr {
+    border-bottom: 1px solid var(--line-soft);
+  }
+}

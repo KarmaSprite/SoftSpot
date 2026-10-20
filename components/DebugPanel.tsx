@@ -467,7 +467,7 @@ export default function DebugPanel() {
     : "dbg-val";
 
   return (
-    <div className="dbg-root" ref={rootRef} style={rootStyle}>
+    <div className="dbg-root no-print" ref={rootRef} style={rootStyle}>
       {open && (
         <div
           className={[
