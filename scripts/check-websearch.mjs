@@ -16,9 +16,12 @@
 import {
   DEFAULT_COUNT,
   PRICE_PER_CALL,
+  buildWebQuery,
+  cleanTitle,
   dedupeWebHits,
   estimateSearchCost,
   isWebSearchConfigured,
+  looksLikePaper,
   normalizeUrl,
   searchChinese,
 } from "../lib/websearch.ts";
@@ -358,6 +361,152 @@ console.log("\n[9] 真联网查一次（没配 key 就跳过，会花 0.005 元�
       check("返回的是中文内容（这是它存在的理由）", looksChinese);
     }
   }
+}
+
+/* ---------------------------------------------------------------
+   [10] 拼查询词
+   --------------------------------------------------------------- */
+
+console.log("\n[10] 拼查询词：必须加「研究 论文」，否则查回来是课程广告");
+{
+  const intent = {
+    claimId: "c1",
+    phrase: "shot language",
+    keywords: ["shot language", "video narrative"],
+    zhQuery: "镜头语言 叙事能力 高职",
+  };
+
+  const query = buildWebQuery(intent);
+  console.log(`  · ${JSON.stringify(query)}`);
+  check("加上了「研究」", query.includes("研究"));
+  check("加上了「论文」", query.includes("论文"));
+  check("原来的中文词还在", query.includes("镜头语言"));
+  check("结果以原词开头（核心词在前）", query.startsWith("镜头语言"));
+
+  // zhQuery 里已经有「研究」时不该重复
+  const withResearch = { ...intent, zhQuery: "行动研究 高职 短视频" };
+  const q2 = buildWebQuery(withResearch);
+  console.log(`  · ${JSON.stringify(q2)}`);
+  check("已有的「研究」不重复加", (q2.match(/研究/g) ?? []).length === 1, q2);
+  check("「论文」还是要加", q2.includes("论文"));
+
+  // zhQuery 里已经两个词都有
+  const withBoth = { ...intent, zhQuery: "高职 教学 研究 论文" };
+  const q3 = buildWebQuery(withBoth);
+  check("两个词都有时一个都不重复加", q3 === "高职 教学 研究 论文", q3);
+
+  // 多余空格要压掉
+  const messy = { ...intent, zhQuery: "  镜头语言   高职  " };
+  check("多余空格被压成一个", buildWebQuery(messy) === "镜头语言 高职 研究 论文", buildWebQuery(messy));
+}
+
+/* ---------------------------------------------------------------
+   [11] 洗标题
+   --------------------------------------------------------------- */
+
+console.log("\n[11] 洗标题：站名、期刊期号、重复标题都要去掉");
+{
+  /*
+     这些全是真实样本，来自第 14a 步实测的三组查询。
+     每一条都注明了为什么要洗它。
+  */
+  const cases = [
+    {
+      raw: "短视频融入高职院校思政课教学策略研究-淮南职业技术学院学报2025年02期-手机知网",
+      expect: "短视频融入高职院校思政课教学策略研究",
+      why: "站名 + 期刊期号要剥掉",
+    },
+    {
+      raw: "高职院校短视频创作课程混合式教学改革策略 - 高职院校短视频创作课程混合式教学改",
+      expect: "高职院校短视频创作课程混合式教学改革策略",
+      why: "「标题 - 标题」重复要合掉",
+    },
+    {
+      raw: "高职院校「短视频+N」网络育人模式的实践路径探索 - 期刊文献+",
+      expect: "高职院校「短视频+N」网络育人模式的实践路径探索",
+      why: "「期刊文献+」是站内标记不是标题",
+    },
+    {
+      raw: "试论电视新闻叙事技巧和镜头语言 - 试论电视新闻叙事技巧和镜头语言",
+      expect: "试论电视新闻叙事技巧和镜头语言",
+      why: "完全重复的标题",
+    },
+    {
+      raw: "短视频资源融入高职英语听说教学的实践策略与效果评估 - - 收藏",
+      expect: "短视频资源融入高职英语听说教学的实践策略与效果评估",
+      why: "「- - 收藏」是列表页残留",
+    },
+    {
+      raw: "高职动画剧本创作课程信息化教学设计与实践：提升原创叙事能力与镜头语言素养 - CSD",
+      expect: "高职动画剧本创作课程信息化教学设计与实践：提升原创叙事能力与镜头语言素养",
+      why: "尾部被截断的英文站名（CSDN 截成 CSD）",
+    },
+    {
+      raw: "视觉聚焦-手机知网",
+      expect: "视觉聚焦",
+      why: "短标题也能剥掉站名",
+    },
+    {
+      raw: "某论文标题（被引量：4）",
+      expect: "某论文标题",
+      why: "「被引量：4」是元信息",
+    },
+  ];
+
+  for (const item of cases) {
+    const got = cleanTitle(item.raw);
+    check(item.why, got === item.expect, `得到 ${JSON.stringify(got)}`);
+  }
+
+  // 干净的标题不该被改坏
+  const clean = "高职院校短视频创作课程混合式教学改革策略";
+  check("干净的标题原样返回", cleanTitle(clean) === clean, cleanTitle(clean));
+
+  // 空串和纯空白不能崩
+  check("空串返回空串", cleanTitle("") === "");
+  check("纯空白返回空串", cleanTitle("   ") === "");
+}
+
+/* ---------------------------------------------------------------
+   [12] 判断是不是论文
+   --------------------------------------------------------------- */
+
+console.log("\n[12] 判断是不是论文：决定打不打折");
+{
+  const paperSites = ["手机知网", "维普网", "万方", "龙源期刊网", "钛学术", "CNKI", "Napstic"];
+  for (const site of paperSites) {
+    check(
+      `站点「${site}」算论文`,
+      looksLikePaper({ site, title: "随便一个标题" }) === true,
+      site,
+    );
+  }
+
+  check(
+    "站点不认识但标题带「学报」也算论文",
+    looksLikePaper({ site: "某学院官网", title: "某某职业技术学院学报目录" }) === true,
+  );
+  check(
+    "标题带「期刊」也算",
+    looksLikePaper({ site: "某站", title: "某某期刊投稿指南" }) === true,
+  );
+
+  check(
+    "CSDN 笔记算网页（要打折）",
+    looksLikePaper({ site: "CSDN", title: "镜头语言 学习笔记" }) === false,
+  );
+  check(
+    "学校新闻算网页",
+    looksLikePaper({ site: "青岛酒店管理职业技术学院", title: "最美学院 | 艺术学院举办课堂" }) === false,
+  );
+  check(
+    "未知站点算网页",
+    looksLikePaper({ site: "（未知站点）", title: "从大量实践经验来看" }) === false,
+  );
+  check(
+    "站点名大小写不影响判断",
+    looksLikePaper({ site: "cnki", title: "x" }) === true,
+  );
 }
 
 /* ---------------------------------------------------------------

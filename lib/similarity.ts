@@ -285,8 +285,17 @@ export type CorpusScore = {
  * 为什么要加广度分：
  * 一篇撞上可能是巧合（比如那篇正好也提到了"高职"），
  * 三篇都撞上就很难说是巧合了。
+ *
+ * weights 是可选的每篇权重（默认全 1）。
+ * 引入它是因为中文网页命中要打折 —— 一篇 CSDN 笔记和一篇正式发表的论文，
+ * 对"别人做过吗"是不同强度的证据。权重乘在**单篇分数**上，
+ * 再走原来的"取最大 + 广度加分"流程，这样"三篇网页都撞上"仍然能靠广度
+ * 把分数顶上去，不会因为打折就一律被压死。
+ *
+ * 广度计数用的也是打折后的分数 —— 否则一篇 0.6 相似度的 CSDN 笔记
+ * 会跟一篇 0.6 相似度的论文一样算"撞上了"。
  */
-export function scoreCorpus(claim: TokenBag, docs: TokenBag[]): CorpusScore {
+export function scoreCorpus(claim: TokenBag, docs: TokenBag[], weights?: number[]): CorpusScore {
   if (docs.length === 0) {
     return { score: 0, bestIndex: -1, best: null, strongCount: 0 };
   }
@@ -297,7 +306,13 @@ export function scoreCorpus(claim: TokenBag, docs: TokenBag[]): CorpusScore {
   let strongCount = 0;
 
   docs.forEach((doc, index) => {
-    const result = pairScore(claim, doc);
+    const raw = pairScore(claim, doc);
+    const weight = weights?.[index] ?? 1;
+    const result: SimilarityResult =
+      weight === 1
+        ? raw
+        : { score: Math.min(1, raw.score * weight), detail: raw.detail };
+
     if (result.score >= BREADTH_THRESHOLD) strongCount += 1;
     if (result.score > bestScore) {
       bestScore = result.score;

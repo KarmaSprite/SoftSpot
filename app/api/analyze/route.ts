@@ -30,6 +30,7 @@ import { blendDefensibility, evidenceOf, type EvidenceResult } from "@/lib/evide
 import { generateQuestions } from "@/lib/question";
 import { translateClaims } from "@/lib/retrieval";
 import { searchAllClaims } from "@/lib/search";
+import { estimateSearchCost, isWebSearchConfigured } from "@/lib/websearch";
 import { defensibilityFromRisk } from "@/lib/similarity";
 import { AnalysisResultSchema, formatIssues } from "@/lib/schema";
 import type { Claim, Question } from "@/lib/types";
@@ -292,6 +293,7 @@ export async function POST(request: Request) {
   /* ---------- 返回 ---------- */
 
   const usage: Usage = client.getUsage();
+  const webSearchCost = estimateSearchCost(searched.webSearchCalls);
 
   return NextResponse.json({
     claims: assembled.data.claims,
@@ -300,6 +302,18 @@ export async function POST(request: Request) {
     usage,
     /** 估算花费（元）。只是估算，不含缓存折扣，会比真实账单略高一点。 */
     costYuan: estimateCost(usage),
+    /**
+     * 中文网页搜索的钱，单独记。
+     *
+     * 为什么分开：它按次计费（5 元/千次），跟 token 完全不是一个计价方式。
+     * 混进 costYuan 里，用户就分不清"模型贵还是搜索贵"。
+     */
+    webSearchCalls: searched.webSearchCalls,
+    webSearchCostYuan: webSearchCost,
+    /** 总花费 = 模型 + 搜索。界面上直接显示这一个数。 */
+    totalCostYuan: Math.round((estimateCost(usage) + webSearchCost) * 10_000) / 10_000,
+    /** 这次有没有配 key、能不能补中文。没配时界面要说清"这次没查中文库"。 */
+    webSearchEnabled: isWebSearchConfigured(),
     model: DEFAULT_MODEL,
     /** 分数这次是真算的，不是占位值了。 */
     scoresArePlaceholder: false,
@@ -317,6 +331,14 @@ export async function POST(request: Request) {
       totalHits: item.overlap.totalHits,
       sources: item.sources,
       bestHit: item.overlap.bestHit,
+      /**
+       * 中文网页那一步怎么了。
+       * off = 英文库分数够高，没花这个钱；skipped = 没配 key；
+       * ok = 查了；failed = 查挂了。
+       * 界面要能分清这四种，尤其 off 和 failed 不能都说成"没查中文"。
+       */
+      webStatus: item.webStatus,
+      webHitCount: item.webHitCount,
     })),
     /**
      * 纵轴分数的明细。

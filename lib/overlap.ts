@@ -1,14 +1,14 @@
 /**
- * 把 arXiv 和 Crossref 的命中合成一个"别人做过吗"的分数。
+ * 把 arXiv、Crossref、中文网页的命中合成一个"别人做过吗"的分数。
  *
- * 这一层的职责只有一个：**把两个库的命中摆到同一张桌上比较**，
+ * 这一层的职责只有一个：**把几个库的命中摆到同一张桌上比较**，
  * 然后给出一句人话解释。
  *
  * 三件事必须在这里做完，不能留给界面：
  *   1. 去重。同一篇论文可能两个库都有（arXiv 预印本后来发在期刊上）。
  *      不去重的话，一篇论文会被数两遍，广度加分凭空多出来。
- *   2. 两个库的权重不同。arXiv 是预印本、Crossref 是正式发表，
- *      但**这里不给权重差** —— 理由见下面 SCORE_WEIGHT 的注释。
+ *   2. arXiv 和 Crossref **不给权重差**（理由见 scoreOverlap 的注释），
+ *      但中文网页要打折（理由见 WEB_PAGE_WEIGHT）。
  *   3. 说清"为什么是这个分"。分数本身没有说服力，
  *      "最像的是这篇《…》，共有『高职』『短视频』『教学』三个词"才有。
  */
@@ -16,6 +16,8 @@
 import type { Claim, RetrievalQuery } from "./schema.ts";
 import type { ArxivHit } from "./arxiv.ts";
 import type { CrossrefHit } from "./crossref.ts";
+import type { WebHit } from "./websearch.ts";
+import { looksLikePaper, cleanTitle } from "./websearch.ts";
 import {
   scoreCorpus,
   tokenize,
@@ -27,15 +29,15 @@ import {
    0. 类型
    --------------------------------------------------------------- */
 
-/** 统一后的文献条目 —— 两个库的字段名不一样，先抹平。 */
+/** 统一后的文献条目 —— 三个源的字段名不一样，先抹平。 */
 export type UnifiedHit = {
-  source: "arxiv" | "crossref";
-  /** arXiv id 或 DOI，全局唯一，用来去重 */
+  source: "arxiv" | "crossref" | "web";
+  /** arXiv id、DOI 或归一化 url，全局唯一，用来去重 */
   key: string;
   title: string;
   year: string;
   authors: string[];
-  /** 期刊名或 arXiv 分类，可能为空 */
+  /** 期刊名、arXiv 分类或站点名，可能为空 */
   venue: string;
   url: string;
 };
@@ -83,6 +85,41 @@ export function fromCrossref(hit: CrossrefHit): UnifiedHit {
     venue: hit.journal,
     url: hit.url,
   };
+}
+
+/**
+ * 中文网页的命中。
+ *
+ * 标题先用 cleanTitle 洗一遍 —— 原始标题带着站名、期刊期号、
+ * 甚至「标题 - 标题」的重复，直接拿去算相似度会凭空加分。
+ * 洗过的标题同时用来去重和比相似度。
+ *
+ * year 从 date 里抠四位数字（实测格式 `2025-12-29T16:00:00+00:00`），
+ * 抠不到就留空。
+ */
+export function fromWeb(hit: WebHit): UnifiedHit {
+  const yearMatch = hit.date.match(/(\d{4})/);
+
+  return {
+    source: "web",
+    key: hit.key,
+    title: cleanTitleForScoring(hit.title),
+    year: yearMatch ? yearMatch[1] : "",
+    authors: [],
+    venue: hit.site,
+    url: hit.url,
+  };
+}
+
+/**
+ * 网页标题清洗的薄包装。
+ *
+ * 单独包一层而不是直接 import cleanTitle 用：
+ * 洗标题的规则将来可能要按场景分叉（比如搜索结果页和详情页规则不同），
+ * 有个函数挡着，改的时候只动这里，不用去翻 fromWeb。
+ */
+function cleanTitleForScoring(title: string): string {
+  return cleanTitle(title);
 }
 
 /**
@@ -170,31 +207,71 @@ export function claimTokens(claim: Claim, intent: RetrievalQuery | null): TokenB
    --------------------------------------------------------------- */
 
 /**
- * 两个库的分数怎么合。
+ * 两个学术库的分数怎么合。
  *
- * **不给两个库不同权重**，直接混在一个池子里比。理由：
+ * **不给 arXiv 和 Crossref 不同权重**，直接混在一个池子里比。理由：
  * 一篇正式发表的论文和一篇预印本，对"这个想法别人做过吗"这个问题
  * 是同等证据。按库给权重等于说"期刊比预印本更算数"，
  * 那是在替用户判断学术品味，不是我们该做的事。
  * 唯一的例外是同一篇东西两个库都有 —— 那种情况在 dedupeHits 里已经合掉了。
+ *
+ * **但中文网页要打折**，见 WEB_PAGE_WEIGHT。
  */
+
+/**
+ * 中文网页的权重。
+ *
+ * 为什么要打折：一篇正式发表的论文和一篇 CSDN 笔记，对"别人做过吗"
+ * 是不同强度的证据。网页里混着课程广告、教材征订页、校园新闻，
+ * 它们能命中一堆共同词，却根本不是在说"我做过这个研究"。
+ *
+ * 为什么是 0.7：这是**没有实验依据的保守估计**，靠的是两条约束 ——
+ *   - 取 1.0：博客文章跟论文同权，一个 CSDN 笔记就能把主张推到"撞车"象限
+ *   - 取 0.5：真论文发在非学术站点上时也会被压掉，漏报比误报更糟
+ * 0.7 意味着**只有近乎同题**的网页才推得到 70 分（撞车线）：
+ * 一篇相似度 1.0 的网页 → 70 分，刚好够撞车；
+ * 相似度 0.6 的网页 → 42 分，只算"有重合"。
+ *
+ * 这个数改了会影响一个点落在哪个象限。答辩被问"这个 0.7 哪来的"，
+ * 诚实的答案是"没有数据支撑，是个保守估计"，不要编。
+ */
+export const WEB_PAGE_WEIGHT = 0.7;
+
+/** 学术库站点或标题像论文的网页，不打折 —— 它本来就是论文。 */
+export const WEB_PAPER_WEIGHT = 1.0;
 
 export type OverlapInput = {
   claim: Claim;
   intent: RetrievalQuery | null;
   arxivHits: ArxivHit[];
   crossrefHits: CrossrefHit[];
+  /** 中文网页命中。没查或没配 key 时是空数组 */
+  webHits?: WebHit[];
   /** 有几个源真的答话了。0 表示分数不可信，要显式告诉用户 */
   sourcesAnswered: number;
 };
 
 export function scoreOverlap(input: OverlapInput): OverlapResult {
-  const { claim, intent, arxivHits, crossrefHits, sourcesAnswered } = input;
+  const { claim, intent, arxivHits, crossrefHits, webHits = [], sourcesAnswered } = input;
 
   const unified = dedupeHits([
     ...arxivHits.map(fromArxiv),
     ...crossrefHits.map(fromCrossref),
+    ...webHits.map(fromWeb),
   ]);
+
+  /*
+      每篇的权重。
+      学术库（arXiv / Crossref）和"看起来像论文的网页"都是 1.0，
+      普通网页是 WEB_PAGE_WEIGHT。
+      注意这里要跟 unified 同序 —— 所以按统一后的条目重新算，
+      不能直接用 webHits 的顺序（去重和拼接都会改变下标）。
+  */
+  const weights = unified.map((hit) => {
+    if (hit.source !== "web") return WEB_PAPER_WEIGHT;
+    // 站点名在 unified 里放在 venue 字段上
+    return looksLikePaper({ site: hit.venue, title: hit.title }) ? WEB_PAPER_WEIGHT : WEB_PAGE_WEIGHT;
+  });
 
   const claimBag = claimTokens(claim, intent);
 
@@ -228,7 +305,7 @@ export function scoreOverlap(input: OverlapInput): OverlapResult {
   }
 
   const docs = unified.map(hitTokens);
-  const corpus = scoreCorpus(claimBag, docs);
+  const corpus = scoreCorpus(claimBag, docs, weights);
 
   if (corpus.best === null || corpus.bestIndex < 0) {
     return {

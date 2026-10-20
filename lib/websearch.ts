@@ -26,6 +26,8 @@
    1. 常量
    --------------------------------------------------------------- */
 
+import type { RetrievalQuery } from "./schema.ts";
+
 export const SEARCH_ENDPOINT = "https://api.deepseek.com/v1/tools/search";
 
 /**
@@ -235,6 +237,154 @@ function normalizeTitle(title: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9\u4e00-\u9fa5]/g, "")
     .trim();
+}
+
+/* ---------------------------------------------------------------
+   6.5 拼查询词 + 洗标题 + 判断是不是论文
+   --------------------------------------------------------------- */
+
+/**
+ * 查询词后缀。
+ *
+ * 实测出来的差别（2026-10，同一主题三组对照）：
+ *   `镜头语言 叙事能力 高职`            → 学银在线课程页、教材征订页、《短视频剪辑与制作》教案
+ *   `镜头语言 叙事能力 高职 研究 论文`  → 万方《电影镜头语言的美学研究》、
+ *                                        维普《摄像作品中的镜头语言与叙事方式分析》、
+ *                                        Napstic《Vlog镜头语言与电影镜头语言的叙事差异化研究》
+ *
+ * 光给核心词，查回来的是**课程和教材**，那不是「别人做过这个研究」的证据。
+ * 加上「研究 论文」，才把结果往文献那一侧拽。
+ *
+ * 这是搜索接口的特性：它做的是网页检索，不是学术库检索，
+ * 只能靠查询词里的语气去影响它把哪一类页面排在前面。
+ */
+export const WEB_QUERY_SUFFIX = "研究 论文";
+
+/**
+ * 拼一条中文查询词。
+ *
+ * 用 intent.zhQuery 而不是主张原文：
+ * 那个字段是 L2-A 翻译时模型挑出来的核心中文词（2-4 个），
+ * 比一整句主张更适合当检索词 —— 原文里的「采用」「提升」「的方式」
+ * 这些词会把检索结果带偏。
+ *
+ * 后缀去重：zhQuery 里已经含「研究」或「论文」时不再加，
+ * 否则会拼出「行动研究 研究 论文 研究」，同一个词重复三次反而稀释了权重。
+ */
+export function buildWebQuery(intent: RetrievalQuery): string {
+  const base = intent.zhQuery.trim().replace(/\s+/g, " ");
+
+  const parts = [base];
+  for (const word of WEB_QUERY_SUFFIX.split(" ")) {
+    if (!base.includes(word)) parts.push(word);
+  }
+
+  return parts.join(" ");
+}
+
+/**
+ * 洗网页标题。
+ *
+ * 实测 DeepSeek 返回的标题长这样（都是真样本）：
+ *   「短视频融入高职院校思政课教学策略研究-淮南职业技术学院学报2025年02期-手机知网」
+ *   「高职院校短视频创作课程混合式教学改革策略 - 高职院校短视频创作课程混合式教学改」
+ *   「高职院校「短视频+N」网络育人模式的实践路径探索 - 期刊文献+」
+ *   「高职动画剧本创作课程信息化教学设计与实践：提升原创叙事能力与镜头语言素养 - CSD」
+ *   「某论文标题（被引量：4）」
+ *
+ * 不清洗直接算相似度会出事：`手机知网`、`期刊文献`、`CSD` 这些词
+ * 跟主张毫无关系，却会凭空加上覆盖率。而且「标题 - 标题」这种重复
+ * 会让同一批词算两遍，把密度那一项顶高。
+ *
+ * 处理四类：
+ *   1. `被引量：4` 这类元信息
+ *   2. 尾部站名（循环剥，因为「- A - 手机知网」要剥两下）
+ *   3. 「标题 - 标题」的重复
+ *   4. 「-期刊名2025年02期」这类期刊信息尾巴
+ */
+export function cleanTitle(raw: string): string {
+  let s = raw.trim();
+
+  // 1. 元信息
+  s = s.replace(/被引量[：:]\s*\d+/g, "").trim();
+  // 元信息被删空之后剩下的空括号
+  s = s.replace(/[（(]\s*[)）]/g, "").trim();
+
+  // 2. 尾部站名。循环剥，最多三次
+  const SITE_TAIL =
+    /[\s\-—|｜·]*[\s(（]*(手机知网|知网|维普网|万方|龙源期刊网|钛学术|学术之家|期刊文献\+|期刊文献|CSDN|Napstic|Scilit|收藏)[)）]?\s*$/i;
+
+  for (let i = 0; i < 3; i += 1) {
+    const next = s.replace(SITE_TAIL, "").trim();
+    if (next === s) break;
+    s = next;
+  }
+
+  // 尾部被截断的英文站名（实测 CSDN 被截成 CSD）
+  s = s.replace(/[\s\-—|｜·]+[A-Za-z]{2,8}\s*$/, "").trim();
+
+  // 3. 「标题 - 标题」重复
+  const dash = s.indexOf(" - ");
+  if (dash > 6) {
+    const head = s.slice(0, dash).trim();
+    const tail = s.slice(dash + 3).trim();
+    if (tail.startsWith(head.slice(0, 10))) {
+      s = head;
+    }
+  }
+
+  // 4. 「-期刊名2025年02期」这类尾巴，留着会污染相似度
+  s = s.replace(/[\-—]\s*[^\-—]{0,30}?\d{4}\s*年\s*\d{1,2}\s*期.*$/, "").trim();
+
+  // 收尾：清掉两端残留的分隔符
+  return s.replace(/^[\s\-—|｜·]+|[\s\-—|｜·]+$/g, "").trim();
+}
+
+/**
+ * 学术库站名。命中这些就当「论文」处理，不打折。
+ *
+ * 为什么要判这个：一篇正式发表的论文和一篇 CSDN 笔记，
+ * 对「别人做过吗」是不同强度的证据。但也不能只看站点 ——
+ * 有些论文的标题出现在非学术站点上（比如学校官网转载的学报目录）。
+ */
+const ACADEMIC_SITES = [
+  "知网",
+  "cnki",
+  "维普",
+  "万方",
+  "龙源",
+  "钛学术",
+  "学术之家",
+  "读秀",
+  "超星",
+  "cnjournals",
+  "期刊界",
+  "napstic",
+  "scilit",
+  "researchgate",
+  "semantic scholar",
+];
+
+/** 标题里出现这些词，也当论文处理。 */
+const PAPER_TITLE_MARKERS = ["学报", "期刊", "论文", "研究综述", "文献综述"];
+
+/**
+ * 这条结果是不是「论文」。
+ *
+ * 只用来决定打不打折（1.0 还是 0.7），不用来过滤 ——
+ * 把普通网页直接丢掉是不对的：一篇 CSDN 笔记如果标题跟你的主张几乎一字不差，
+ * 那它确实是「有人做过」的证据，只是没那么硬。
+ *
+ * 参数只要「站点名 + 标题」两样，不要求完整的 WebHit ——
+ * 因为 lib/overlap.ts 里拿到的是抹平后的 UnifiedHit（站点名在 venue 字段上），
+ * 那边把两样挑出来传进来就行，不用为了一个判断函数再拼一个假 WebHit。
+ */
+export function looksLikePaper(hit: { site: string; title: string }): boolean {
+  const site = hit.site.toLowerCase();
+  if (ACADEMIC_SITES.some((name) => site.includes(name))) return true;
+
+  const title = hit.title;
+  return PAPER_TITLE_MARKERS.some((marker) => title.includes(marker));
 }
 
 /* ---------------------------------------------------------------
