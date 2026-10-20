@@ -2322,6 +2322,90 @@ textarea {
   font-weight: 600;
 }
 
+/* ----- 一条主场都没有时的「离得最近的一条」 ----- */
+
+/*
+  这条虚线是这一整块唯一的分隔信号。
+  为什么不用底色、不用边框把整块框起来：
+  框起来会变成第二个卡片，用户会以为这是另一份结论。
+  它其实是上一句话的补充说明 —— 只该有一条淡的分隔线。
+*/
+.home-nearest {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+/*
+  标题用正文色，不用绿色。
+  这是「你还差一点」的消息，不是好消息。
+  但它也不是坏消息 —— 所以不用红色。中性色最准确。
+*/
+.home-nearest-head {
+  color: var(--ink);
+  font-size: var(--fs-base);
+  line-height: 1.7;
+}
+
+/*
+  序号单独包一层只是为了等宽数字。
+  这一行必须是行内排版（不能 flex）——
+  用 flex 的话 gap 会在「第」「5」「条」之间各塞一道空隙，
+  读起来像「第 5 条」被拆开了。
+*/
+.home-nearest-no {
+  padding: 0 2px;
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  主张原文截两行。
+  为什么要截：这一步只回答"是哪一条"，用户要读全文会去看主张表。
+  一条 200 字的主张会把下面那句真正有用的话挤出屏幕。
+*/
+.home-nearest-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.home-nearest-gap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--gap-sm);
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-nearest-gap b {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+/*
+  那句动作。
+  左边一条 2px 竖线把它跟上面的分数分开 —— 分数是诊断，这句是处方，
+  两者性质不同，不该长得一样。
+*/
+.home-nearest-advice {
+  margin-top: 10px;
+  padding-left: 11px;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.75;
+}
+
 @media (max-width: 600px) {
   .home-ground {
     padding: 14px 14px 14px 15px;
@@ -2333,6 +2417,10 @@ textarea {
 
   .home-meta {
     gap: 4px var(--gap-xs);
+  }
+
+  .home-nearest-gap {
+    gap: 3px var(--gap-xs);
   }
 }
 
@@ -2433,6 +2521,7 @@ textarea {
   .legend-dot,
   .home-ground,
   .home-loc,
+  .home-nearest,
   .badge,
   .claim-quad,
   .score-bar,
@@ -2493,6 +2582,7 @@ textarea {
 
   /* 分页：一张卡片、一行表格、一条主场，都不许从中间劈开 */
   .home-item,
+  .home-nearest,
   .claim-table tr,
   .question-card,
   .map-block,

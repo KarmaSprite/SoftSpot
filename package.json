@@ -14,7 +14,8 @@
     "check:search": "node scripts/check-search.mjs",
     "check:evidence": "node scripts/check-evidence.mjs",
     "check:websearch": "node scripts/check-websearch.mjs",
-    "check:manual": "node scripts/check-manual.mjs"
+    "check:manual": "node scripts/check-manual.mjs",
+    "check:nearest": "node scripts/check-nearest.mjs"
   },
   "dependencies": {
     "next": "15.5.28",

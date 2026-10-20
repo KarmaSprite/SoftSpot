@@ -45,7 +45,22 @@ type AnalyzeResponse = {
   manualRefCount: number;
   /** 这个功能当前开没开（站长开关）。服务端关了的话，前端传上去的内容会被忽略。 */
   manualRefsEnabled: boolean;
+  /**
+   * 每条主张的证据明细。
+   *
+   * 「你的主场」那一块在一条都没进的时候，要告诉用户
+   * 离得最近的是哪一条、卡在哪个维度上 —— 那需要这个。
+   * 字段形状对齐 route.ts 里 evidence 那一段。
+   */
+  evidence: EvidenceItem[];
   elapsedMs: number;
+};
+
+/** 一条主张的证据明细，跟 lib/nearest.ts 的 EvidenceLite 同形。 */
+type EvidenceItem = {
+  claimId: string;
+  score: number;
+  dimensions: { name: string; score: number; hits: string[] }[];
 };
 
 /** 报告顶部那一行元信息。跟主张、问题本身无关，所以单独存一份。 */
@@ -57,6 +72,7 @@ type Meta = {
   scoresArePlaceholder: boolean;
   blindClaimIds: string[];
   manualRefCount: number;
+  evidence: EvidenceItem[];
 };
 
 export default function Home() {
@@ -143,6 +159,12 @@ export default function Home() {
          */
         blindClaimIds: data.blindClaimIds ?? [],
         manualRefCount: data.manualRefCount ?? 0,
+        /**
+         * 证据明细同样用 ?? [] 兜住。
+         * 拿不到的时候「离主场最近的一条」会退回一句笼统的建议，
+         * 不会编一个维度名出来。
+         */
+        evidence: data.evidence ?? [],
       });
     } catch (e) {
       /**
@@ -361,6 +383,7 @@ export default function Home() {
             claims={result.claims}
             blindClaimIds={meta?.blindClaimIds ?? []}
             placeholder={meta?.scoresArePlaceholder ?? false}
+            evidence={meta?.evidence ?? []}
           />
 
           <div className="report-head">

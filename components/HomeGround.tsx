@@ -15,6 +15,12 @@
  */
 
 import { getClaimQuadrant } from "@/lib/quadrant";
+import {
+  findNearestHome,
+  describeDefGap,
+  describeOverlapGap,
+  type EvidenceLite,
+} from "@/lib/nearest";
 import type { Claim } from "@/lib/types";
 
 type Props = {
@@ -36,12 +42,22 @@ type Props = {
    * 所以整个板块不渲染。
    */
   placeholder?: boolean;
+  /**
+   * 每条主张的证据明细（第 19c-2 步）。
+   *
+   * 只在「一条主场都没有」的时候用得上：那时要告诉用户
+   * 离得最近的是哪一条、卡在哪个维度上。有主场的时候这块不显示。
+   * 老接口没有这个字段，所以默认空数组 —— 拿不到就退回笼统的说法，
+   * 不能编一个维度名出来。
+   */
+  evidence?: EvidenceLite[];
 };
 
 export default function HomeGround({
   claims,
   blindClaimIds = [],
   placeholder = false,
+  evidence = [],
 }: Props) {
   if (placeholder) return null;
 
@@ -66,6 +82,17 @@ export default function HomeGround({
   */
   const allBlind =
     claims.length > 0 && claims.every((claim) => blindSet.has(claim.id));
+
+  /*
+    只有真的没有主场时才去算「最近的一条」。
+    有主场的时候算它没意义（而且 findNearestHome 会返回 null），
+    但更重要的是：这里先判 home.length，是为了不让多算一次
+    变成一个可能出错的路径。
+  */
+  const nearest =
+    home.length === 0 && !allBlind
+      ? findNearestHome(claims, blindClaimIds, evidence)
+      : null;
 
   return (
     <section
@@ -121,13 +148,37 @@ export default function HomeGround({
       ) : (
         /*
           真的没有。不说「你没有主场」——那句话只有否定，没有下一步。
-          给一个具体动作：先补最危险的那两条，补完再回来看。
+          先说这一版没看到稳的，再具体指出离得最近的那一条：
+          差几分、卡在哪、该补什么。用户要的是下一步动哪里。
         */
-        <p className="home-ground-lede home-ground-empty">
-          这一版还没看到稳的地方。别急着泄气 ——
-          先把「最该改的地方」那两条补上（补数据、补方法），
-          补完再回来看，它们很可能就挪到这个角里来了。
-        </p>
+        <>
+          <p className="home-ground-lede home-ground-empty">
+            这一版还没看到稳的地方。别急着泄气 ——
+            先把下面这条补一补，它离主场只差一点。
+          </p>
+
+          {nearest && (
+            <div className="home-nearest">
+              <p className="home-nearest-head">
+                离主场最近的是第
+                <span className="home-nearest-no">{nearest.index + 1}</span>
+                条
+              </p>
+              <p className="home-nearest-text">「{nearest.claim.text}」</p>
+              <p className="home-nearest-gap">
+                <span>
+                  答得上来 <b>{nearest.claim.defensibility}</b>（
+                  {describeDefGap(nearest.defGap)}）
+                </span>
+                <span>
+                  别人做过 <b>{nearest.claim.overlap}</b>（
+                  {describeOverlapGap(nearest.overlapGap)}）
+                </span>
+              </p>
+              <p className="home-nearest-advice">{nearest.advice}</p>
+            </div>
+          )}
+        </>
       )}
     </section>
   );
