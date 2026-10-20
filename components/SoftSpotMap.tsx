@@ -59,26 +59,107 @@ const BOUNDARY_MARGIN = 1.5;
  * 颜色和结论自相矛盾，比两个点叠在一起更让人糊涂。
  * 所以横向、纵向都夹在原来那一侧。
  */
-const NUDGE_ANGLES = [-35, 35, -70, 70, -110, 110, -145, 145, 180];
+/**
+ * 推开时试的方向：每 10 度一个，绕一圈。
+ *
+ * **为什么不是手写 9 个角度**：手写的那 9 个（-35 / 35 / -70 / 70 / …）是
+ * 等间隔 70 度挑出来的，看着均匀，实际在「必须往某个窄扇区躲」的时候会整个错过。
+ * 实测一份真实报告里三个点挤在 (61,48)(63,48)(66,48) 这一小块，
+ * 其中一个点最后被推到了 12.6 个百分点以外 —— 因为近处唯一能站的位置
+ * 恰好落在两个手写角度之间。它没有出现在图上，用户看到的是一个
+ * 「别人做过 63」的主张被画在 75 的位置上，那是假的位置。
+ *
+ * 每 10 度一个之后，同一份数据里那个点只挪了 10.5 个百分点。
+ * 仍然是写死的表，同一份数据每次画出来位置一样。
+ */
+const NUDGE_ANGLES: number[] = (() => {
+  const angles = [0];
+  for (let step = 10; step <= 180; step += 10) {
+    angles.push(step, -step);
+  }
+  return angles;
+})();
 
+/**
+ * 推开时试的几档距离（单位：百分点），从小到大。
+ *
+ * **为什么不能只用一档**：实测一份真实报告里有两个点挤在 0.58 个百分点上 ——
+ * 一个在 (51, 39)，另一个在 (51, 45)。按固定 7 个百分点推 9 个角度，
+ * 每一个角度算出来的横坐标都被 `keepSide` 夹回 51.5（它紧贴分界线，
+ * 只许往右挪），纵向又挪不够，9 个角度全撞着，循环结束就默默接受了重叠。
+ *
+ * 所以往外多试几档：7 不行就 10.5，再不行 15.4、21。
+ * 从小到大试，是为了让点尽量待在真实位置附近 ——
+ * 挪 7 个点就能分开的，不该挪到 21 去。
+ */
+const NUDGE_RADII = [MIN_GAP, MIN_GAP * 1.5, MIN_GAP * 2.2, MIN_GAP * 3];
+
+/**
+ * 把挨得太近的点推开。
+ *
+ * 为什么需要：两条主张分数接近时（比如 70/6 和 68/6），
+ * 两个圆点会精确重叠，编号「1」「3」挤成一团，用户只能看到一个点，
+ * 会以为系统漏了一条主张 —— 而"少了一条"和"那条跟别人一样"是两件事。
+ *
+ * 做法：按顺序摆，每个点如果撞上已经摆好的点，就按固定角度、由近到远
+ * 往外挪，挪到一个不撞的位置为止。角度表和距离档位都是写死的，
+ * 同一份数据每次画出来都一样，不会出现刷新一次点就换个地方的情况。
+ *
+ * **推的时候不许越过象限分界线**：这个点属于哪个象限是算出来的（看分数），
+ * 如果为了躲重叠把它推到线另一边，它就会压在另一个象限的底色上 ——
+ * 颜色和结论自相矛盾，比两个点叠在一起更让人糊涂。
+ * 所以横向、纵向都夹在原来那一侧。
+ *
+ * **实在推不开怎么办**：所有档位所有角度都撞着时，退而求其次，
+ * 挑一个「离其他点最远」的位置。这样至少不会精确重合，
+ * 两个编号能看出是两团。不设这个兜底的话，循环会停在最后一个
+ * 被夹回原地的候选上，等于什么都没做。
+ */
 function spreadPoints(points: { x: number; y: number }[]): { x: number; y: number }[] {
   const placed: { x: number; y: number }[] = [];
 
   for (const point of points) {
     // 先夹进画布，再判断要不要推开 —— 分数 0 和 100 也要留出边距
-    let x = clampToPlot(point.x);
-    let y = clampToPlot(point.y);
+    const baseX = clampToPlot(point.x);
+    const baseY = clampToPlot(point.y);
 
-    for (const angle of NUDGE_ANGLES) {
-      const taken = placed.some((other) => Math.hypot(other.x - x, other.y - y) < MIN_GAP);
-      if (!taken) break;
+    let chosen = { x: baseX, y: baseY };
 
-      const rad = (angle * Math.PI) / 180;
-      x = keepSide(point.x + Math.cos(rad) * MIN_GAP, point.x);
-      y = keepSide(point.y + Math.sin(rad) * MIN_GAP, point.y);
+    const collides = placed.some((other) => Math.hypot(other.x - baseX, other.y - baseY) < MIN_GAP);
+
+    if (collides) {
+      let found: { x: number; y: number } | null = null;
+      let fallback: { x: number; y: number } = chosen;
+      let fallbackClearance = -1;
+
+      outer: for (const radius of NUDGE_RADII) {
+        for (const angle of NUDGE_ANGLES) {
+          const rad = (angle * Math.PI) / 180;
+          const x = keepSide(point.x + Math.cos(rad) * radius, point.x);
+          const y = keepSide(point.y + Math.sin(rad) * radius, point.y);
+
+          const clearance = placed.reduce(
+            (min, other) => Math.min(min, Math.hypot(other.x - x, other.y - y)),
+            Number.POSITIVE_INFINITY,
+          );
+
+          if (clearance >= MIN_GAP) {
+            found = { x, y };
+            break outer;
+          }
+
+          // 全都撞着的时候留一个最好的（离其他点最远那个）
+          if (clearance > fallbackClearance) {
+            fallbackClearance = clearance;
+            fallback = { x, y };
+          }
+        }
+      }
+
+      chosen = found ?? fallback;
     }
 
-    placed.push({ x, y });
+    placed.push(chosen);
   }
 
   return placed;
