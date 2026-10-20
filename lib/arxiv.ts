@@ -38,7 +38,7 @@ const TIMEOUT_MS = 15000;
 const DEFAULT_MAX_RESULTS = 5;
 
 /** arXiv 要求带 User-Agent，否则可能直接 403。 */
-const USER_AGENT = "pre-defense/0.1 (academic outline checker; contact: local demo)";
+const USER_AGENT = "soft-spot/0.1 (academic outline checker; contact: local demo)";
 
 /** 一条检索结果。 */
 export type ArxivHit = {

@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "还没配 DEEPSEEK_API_KEY。在 pre-defense 目录下新建 .env.local，写一行 DEEPSEEK_API_KEY=sk-你的key，保存后不用重启。",
+          "还没配 DEEPSEEK_API_KEY。在项目根目录下新建 .env.local，写一行 DEEPSEEK_API_KEY=sk-你的key，保存后不用重启。",
       },
       { status: 400 },
     );

@@ -6,7 +6,7 @@
  * 而这些用注入的假 fetch 就能全测到。真联网只留一组，放在最后，
  * 而且没配 key 时自动跳过。
  *
- * 想真跑一次：在 pre-defense 目录下先设好 DEEPSEEK_API_KEY，再
+ * 想真跑一次：在项目根目录下先设好 DEEPSEEK_API_KEY，再
  *   npm run check:websearch
  * 会多花 0.005 元。
  *

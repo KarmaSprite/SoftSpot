@@ -24,7 +24,7 @@ const CROSSREF_ENDPOINT = "https://api.crossref.org/works";
  * 占位地址也能进礼貌池（Crossref 只做登记不验证），
  * 但正式发布时应该换成真实联系方式，这是对公共服务的礼貌。
  */
-const CONTACT_EMAIL = process.env.CROSSREF_MAILTO || "pre-defense@example.com";
+const CONTACT_EMAIL = process.env.CROSSREF_MAILTO || "soft-spot@example.com";
 
 /** 单次请求超时。 */
 const TIMEOUT_MS = 20000;
@@ -249,7 +249,7 @@ async function requestOnce(
   try {
     response = await fetch(url, {
       headers: {
-        "User-Agent": `pre-defense/0.1 (mailto:${CONTACT_EMAIL})`,
+        "User-Agent": `soft-spot/0.1 (mailto:${CONTACT_EMAIL})`,
         Accept: "application/json",
       },
       signal: AbortSignal.timeout(TIMEOUT_MS),

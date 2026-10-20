@@ -74,7 +74,7 @@ L3 组装：纯代码，不调模型，算四象限、拼报告
 
 ## 十分钟复现
 
-跟着走一遍，十分钟内你会得到一份真的报告（花掉大约三分钱）。
+跟着走一遍，十分钟内你会得到一份真的报告（花掉大约四分钱）。
 
 ### 第 1 分钟：拿到代码
 
@@ -165,7 +165,7 @@ npm run check
 
 终端里会出现一行 `→ 调用模型失败：fetch failed` —— 那是自检故意用一个「假装断网」的假模型测错误处理，**不是失败**，后面紧跟着的 `18 passed, 0 failed` 才是结论。
 
-其余七个模块各有自己的自检（`npm run check:similarity`、`check:search`、`check:websearch`、`check:manual`、`check:nearest` 等），其中 `check:arxiv`、`check:crossref`、`check:retrieval` 会真的联网查一遍，跑之前知道一下。
+其余八个模块各有自己的自检（`npm run check:similarity`、`check:search`、`check:websearch`、`check:manual`、`check:nearest` 等），其中 `check:arxiv`、`check:crossref`、`check:retrieval` 会真的联网查一遍，跑之前知道一下。
 
 ### 生产构建
 
@@ -198,7 +198,9 @@ pre-defense/
 │  ├─ ClaimTable.tsx          主张明细表
 │  ├─ QuestionList.tsx        质询问题清单
 │  ├─ HomeGround.tsx          「你的主场」
-│  └─ DebugPanel.tsx          开发期中文调试面板（生产环境不渲染）
+│  ├─ OverallScore.tsx        报告顶上的总体评分
+│  ├─ ResetDialog.tsx         重置前的二次确认弹层
+│  └─ DebugPanel.tsx          开发期中文面板（生产环境不渲染）
 ├─ lib/
 │  ├─ types.ts                主张 / 问题的数据结构
 │  ├─ schema.ts               zod 校验，每层输出都过一遍
@@ -209,16 +211,20 @@ pre-defense/
 │  ├─ question.ts             L2-B 质询生成
 │  ├─ retrieval.ts            L2-A 检索意图翻译
 │  ├─ arxiv.ts                arXiv 检索（免费无 key）
-│  ├─ crossref.ts             Crossref 检索（免费无 key）
+│  ├─ crossref.ts             Crossref 检索（免费无 key，挡掉表格碎片）
 │  ├─ websearch.ts            DeepSeek 搜索补中文库（可选）
 │  ├─ similarity.ts           相似度打分（纯代码）
 │  ├─ overlap.ts              多源结果合并与理由生成
 │  ├─ search.ts               检索总调度，一个库挂了不影响其他
 │  ├─ evidence.ts             纵轴：提纲自己有没有证据
 │  ├─ risk.ts                 问题危险度：档位由模型给，分数由代码换算
+│  ├─ score.ts                总体评分：原始分 → 显示分
 │  ├─ quadrant.ts             四象限判定
 │  ├─ nearest.ts              主场空着时算「离得最近的是哪条、差什么」
 │  ├─ manual.ts               手工粘贴中文文献的解析
+│  ├─ warnings.ts             同一个源出问题只报一条
+│  ├─ samples.ts              测试面板里的几条预设提纲
+│  ├─ samples-instant.ts      两条离线示例（真跑完冻结下来的响应）
 │  ├─ theme.ts                深色/浅色偏好的读取与记忆
 │  ├─ config.ts               站长开关
 │  └─ mock.ts                 早期假数据，现在没有任何地方引用它
@@ -227,6 +233,7 @@ pre-defense/
 │  └─ prompts.md              三条完整的 Prompt 链（含失败的那几轮）
 ├─ plan.md                    实施计划与逐步进度记录
 ├─ plan.local.md              更详细的踩坑笔记（不进 git）
+├─ LICENSE                    CC BY-NC-SA 4.0 全文
 └─ README.md                  本文件
 ```
 
@@ -254,7 +261,7 @@ pre-defense/
 
 关于总体评分：原始分（两头各占一半再平均）在 40 附近只是「两个轴都正好在中间」，不代表中等水平。显示前会按一条写死在 `lib/score.ts` 里的刻度换算一次 —— 原始 40 → 58、55 → 70、70 → 84。**换的是刻度，不是测量**，刻度表就印在报告上，可以自己验算。另外有一条兜底：横轴到 85 分以上（等于整段照抄某篇论文），不管纵轴多高，显示分不超过 45。
 
-剩下的事：`plan.md` 阶段六里没打勾的那一项（演示视频脚本）。
+剩下的事：`plan.md` 阶段六里没打勾的两项 —— 主张明细点开看理由、演示视频脚本。
 
 逐步的进度记录（每一步为什么这么做、踩了什么坑）见 [plan.md](./plan.md) 末尾的「进度记录」。
 
