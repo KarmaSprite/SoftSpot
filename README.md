@@ -1,5 +1,7 @@
 # 预答辩 · Pre-Defense
 
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
 > 在你还能改的时候，告诉你哪儿会被问倒。
 
 粘贴一份论文开题提纲，60 秒后拿到两份东西：
@@ -79,6 +81,16 @@ pre-defense/
 ## 当前进度
 
 见 [plan.md](./plan.md)。当前：第 1 步完成，项目骨架已就位。
+
+## 许可证
+
+本项目采用 CC BY-NC-SA 4.0 许可证。查看 [LICENSE](./LICENSE) 文件或访问 [creativecommons.org](https://creativecommons.org/licenses/by-nc-sa/4.0/) 了解详情。
+
+简单说三件事：
+
+- **署名**：用的时候要注明出处。
+- **非商业**：不能拿去卖钱。
+- **相同方式共享**：你改过的版本，也要用同样的许可证开放出来。
 
 ## 比赛
 
