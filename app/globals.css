@@ -2939,7 +2939,13 @@ textarea {
      主张表和问题清单直接糊成了一团。
      areas 里一个名字只能占一块区域，同名就是同一个格子。
      改成「左右两栏显式定位 + 通栏块只写 grid-column: 1 / -1」，
-     通栏块就会自动落到第 3、第 4 行，有几块排几块。
+     通栏块就会自动落到后面的行，有几块排几块。
+  */
+  /*
+     第 23 步之后输入面板在出结果时整个不渲染了，
+     所以左栏第一行不再是面板，而是地图。
+     这条 .panel 规则留着是为了「面板万一还在」的情况不出错
+     （比如将来某天想把它收成一小条），它现在不会命中。
   */
   .workbench.is-split > .panel {
     grid-column: 1;
@@ -2947,14 +2953,19 @@ textarea {
   }
 
   /*
-     报告竖跨前两行，是因为它比左栏那两块矮，
-     让它在第一行待着的话，地图左边会空出一大块。
+     报告竖跨前两行，是因为它比左栏的地图矮，
+     让它在第一行待着的话，左边下面会空出一大块。
      跨两行之后它的高度还是由内容决定（align-items: start），
      不会被拉长 —— 拉长的话卡片底边会拖到地图下面去，很难看。
+
+     第 23 步之后左栏只剩地图一块，报告改成只占第 1 行：
+     继续 span 2 的话，它会在第 2 行右栏占住一格，
+     两块通栏（主张表、问题清单）要跨满整行就只能被挤到第 3 行，
+     第 2 行左边就空出一大块。
   */
   .workbench.is-split > .report {
     grid-column: 2;
-    grid-row: 1 / span 2;
+    grid-row: 1;
     /*
        单栏时 .report 顶着 44px 上边距和一条分隔线，因为它要跟上面的输入区断开。
        两栏时它是右边那一列的开头，没有「上面」需要断开 ——
@@ -2986,9 +2997,16 @@ textarea {
     overflow-y: auto;
   }
 
+  /*
+     地图在左栏第一行。
+     第 23 步之前它是第 2 行（上面压着输入面板），
+     现在面板不渲染了，还写 grid-row: 2 的话，
+     第 1 行左边就是一块空地，地图被无端推下去半屏 ——
+     而右栏的报告从第 1 行开始，两块顶边就对不齐了。
+  */
   .workbench.is-split > .workbench-map {
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 1;
   }
 
   /* 通栏：从第一列一直跨到最后一列，有几块就自动往下排几行 */
@@ -3006,35 +3024,11 @@ textarea {
   }
 
   /*
-     两栏里输入面板要收拢。
-     收拢是这一节唯一有动画的地方，也是最容易做坏的地方。
-
-     为什么只改 max-height 和 min-height，不改 width：
-     width 变化会触发每一行的重新折行，文字在动画过程中一直在跳；
-     max-height 只影响可视区域，文字位置不动，看起来是「卷上去」而不是「挤扁」。
-
-     为什么 min-height 从 240 收到 96 而不是 0：
-     收到 0 的话输入框整个消失，用户会以为提纲被清空了。
-     留 96px 正好露三行，一眼能看出「我贴的东西还在」。
+     第 23 步之前，这里有一条「两栏里输入面板收拢到 96px」的规则。
+     现在面板在出结果时整个不渲染了，那条规则永远命中不到，
+     所以删掉了 —— 留着一段不会生效的代码，以后读的人会以为
+     「出结果时输入框还在，只是变矮了」，那是错的。
   */
-  .workbench.is-split > .panel .outline-input {
-    min-height: 96px;
-    max-height: 96px;
-    transition:
-      min-height 0.32s ease,
-      max-height 0.32s ease;
-  }
-
-  /*
-     收拢之后光标还在里面的话，用户一打字就只能看见最后一行。
-     但这里不能主动 blur —— 他可能是刚点完按钮，焦点本来就在按钮上。
-     所以只处理「聚焦时展开回去」这一件事：
-     点进输入框要改提纲，它就自动长回 240px，改完点别处再收回 96px。
-  */
-  .workbench.is-split > .panel .outline-input:focus {
-    min-height: 240px;
-    max-height: 46vh;
-  }
 }
 
 /*
@@ -3114,47 +3108,28 @@ textarea {
     animation: none;
   }
 
-  .workbench.is-split > .panel .outline-input {
-    transition: none;
+  /*
+     第 23 步删掉了「输入框收拢」那条 transition，这里对应地换成
+     顶部结果条和弹层：结果条本身不动，弹层不做缩放。
+  */
+  .dialog {
+    animation: none;
   }
 }
 
-/* ----- 报告标题行：标题 + 存成 PDF ----- */
+/* ----- 报告标题行 ----- */
 
+/*
+   第 23 步之后这一行只剩标题。
+   保留 flex 是因为打印时下面还有一条线要跟标题对齐，
+   而且将来若要在这一行补别的东西，flex 比 block 更好接。
+*/
 .report-top {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--gap-md);
   flex-wrap: wrap;
-}
-
-/*
-   打印按钮做成描边而不是实心。
-   实心按钮在这个页面里只有一个含义：主操作（开始诊断）。
-   存 PDF 是次要动作，用同一套视觉会让人以为它也是「必须点」的一步。
-*/
-.print-btn {
-  padding: 7px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.print-btn:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
-
-.print-btn:active {
-  transform: translateY(1px);
 }
 
 /*
@@ -3166,16 +3141,6 @@ textarea {
 @media screen and (max-width: 900px) {
   .workbench.is-split {
     display: block;
-  }
-
-  /*
-     单栏时输入面板不再收拢。
-     竖着排的时候，输入框缩到 96px 会让用户以为页面出了故障 ——
-     因为下面还有一整份报告要往下翻，输入框那么小反而碍事。
-  */
-  .workbench.is-split > .panel .outline-input {
-    min-height: 160px;
-    max-height: 40vh;
   }
 
   .report-top {
@@ -3215,8 +3180,312 @@ textarea {
     align-items: flex-end;
   }
 
-  /* 打印时这一行只剩标题，按钮被 .no-print 藏掉，标题下面那条线要贴回去 */
+  /* 打印时这一行只剩标题，标题下面那条线要贴回去 */
   .report-title {
     flex: 1;
+  }
+}
+
+/* ---------- 18. 结果页顶部的固定条与确认弹层 ---------- */
+
+/*
+   为什么要有这一节：
+   第 23 步把输入卡片从结果页里拿掉了，用户往下读报告的时候
+   顶上就没有任何东西告诉他「我贴的是哪份提纲」。
+   一份报告五六屏长，读到第三个问题已经想不起开头写的什么了。
+
+   所以顶上换成一条固定条：左边是折起来的提纲（想看就展开），
+   右边是三个动作（重新编辑 / 存成 PDF / 重置）。
+   固定条本身极薄 —— 只有一行文字高，收起状态不占地方。
+
+   三个动作必须干三件不同的事：
+   - 重新编辑：回输入页，提纲留着（改几个字重跑）
+   - 存成 PDF：把报告带走
+   - 重置：清空一切，回到最开始（要二次确认）
+   如果「重新编辑」也清空，那它和「重置」就是同一个按钮，
+   用户每次都会点错，然后丢掉刚写好的东西。
+*/
+
+.result-bar {
+  /*
+     sticky 贴着窗口顶。
+     为什么不是 fixed：fixed 会脱离文档流，下面的内容会往上顶，
+     第一条主张会藏在这条栏底下。sticky 占位，不遮挡任何东西。
+  */
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  margin-bottom: var(--gap-lg);
+  padding: var(--gap-sm) 0;
+  /*
+     背景必须是实色。
+     透明的 sticky 条滚过去的时候，底下的报告文字会从它中间穿过去，
+     看起来像两层内容糊在一起。
+  */
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+/*
+   提纲摘要。
+   min-width: 0 是为了让它能被压缩 —— flex 子项默认 min-width: auto，
+   里面一段长中文（没有空格）会把它撑得比容器还宽，把右边三个按钮挤出去。
+*/
+.outline-brief {
+  min-width: 0;
+  flex: 1;
+}
+
+.outline-brief > summary {
+  display: inline-block;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
+  /*
+     去掉 Chrome 默认的那个三角。
+     它默认是 0.5em 的黑色实心三角，在这个字号下看起来像个小污点。
+     换成 summary::before 里那个更细的符号，并且跟着文字一起变色。
+  */
+  list-style: none;
+}
+
+.outline-brief > summary::-webkit-details-marker {
+  display: none;
+}
+
+.outline-brief > summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.outline-brief[open] > summary::before {
+  content: "▾ ";
+}
+
+.outline-brief > summary:hover {
+  color: var(--ink);
+}
+
+/*
+   展开后的全文。
+   为什么给它一个 max-height + 滚动：提纲可能八百字，
+   全摊开会把报告整个推到两屏以下，用户点开只是想扫一眼开头，
+   结果被强制滚了半天。给它一屏的三成，够看，不喧宾夺主。
+
+   为什么用 pre-wrap：用户粘进来的提纲是分段的，
+   普通 white-space 会把换行吃掉，变成一大坨。
+*/
+.outline-brief > p {
+  max-height: 30vh;
+  overflow-y: auto;
+  margin: var(--gap-sm) 0 0;
+  padding: var(--gap-sm) var(--gap-md);
+  border-left: 2px solid var(--line);
+  background: var(--sunken);
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+.result-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--gap-sm);
+}
+
+/*
+   三个按钮都是描边，不用实心。
+   实心在这个页面里只有一个含义：主操作（开始诊断）。
+   这三个都是「报告出来之后才可能想做」的次要动作，
+   用实心会把视线从报告正文上抢走。
+*/
+.result-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.result-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.result-btn:active {
+  transform: translateY(1px);
+}
+
+/*
+   重置是危险动作，但它平时不该是红的。
+   一进结果页就摆一个红色按钮，等于一直在提醒用户「你可以毁掉这份东西」。
+   平时跟其他两个一样，只在鼠标移上去时才露出危险色 ——
+   那时候用户的意图已经明确了。
+*/
+.result-btn.is-danger:hover {
+  border-color: var(--q-weak-ink);
+  background: transparent;
+  color: var(--q-weak-ink);
+}
+
+/*
+   弹层遮罩。
+   rgb(0 0 0 / 0.42) 是压暗而不是全黑：全黑像页面崩了，
+   压暗才像「底下那层还在，只是暂时不能点」。
+*/
+.dialog-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: var(--gap-md);
+  background: rgb(0 0 0 / 0.42);
+}
+
+.dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: var(--gap-lg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  /*
+     唯一允许的动画：出现时轻轻放大一点。
+     为什么只有这一处：它从无到有，需要一个「我出现了」的提示；
+     而页面上其他东西都是就地变化，不需要。
+  */
+  animation: dialog-in 0.16s ease both;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dialog-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.dialog-body {
+  margin: var(--gap-sm) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gap-sm);
+  margin-top: var(--gap-lg);
+}
+
+.dialog-btn {
+  padding: 7px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.dialog-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+/*
+   危险按钮做成实心红。
+   这是整个页面里唯一一个实心红按钮，而且它只在一个已经过确认的弹层里出现 ——
+   这样「实心红 = 真的会丢东西」这条含义才立得住。
+
+   为什么底色用 --q-weak 而不是 --q-weak-ink：
+   这两个变量的分工是「实心填充用前者、文字颜色用后者」。
+   深色模式下 --q-weak-ink 是 #e89a8f（浅粉，为的是在深底上当字看得清），
+   拿它当按钮底色再配白字，对比度只有 2.22 —— 实测出来的，读不清。
+   --q-weak 两个主题都是足够深的红（#a83a2c / #b8483a），
+   配白字是 6.35 / 5.21，都过 AA。
+*/
+.dialog-btn.is-danger {
+  border-color: var(--q-weak);
+  background: var(--q-weak);
+  color: var(--on-accent);
+}
+
+/*
+    hover 不调亮度，只加一圈同色系的光环。
+   调亮度会让底色变浅，白字的对比度跟着掉 ——
+   深色模式下再浅一点就跌破 4.5 了，而 hover 恰恰是用户马上要按下去的那一刻。
+   加光环不改底色，对比度一分不动。
+*/
+.dialog-btn.is-danger:hover {
+  border-color: var(--q-weak);
+  background: var(--q-weak);
+  color: var(--on-accent);
+  box-shadow: 0 0 0 3px var(--q-weak-bg);
+}
+
+/*
+   窄屏：三个按钮排到第二行。
+   390px 下「重新编辑 / 存成 PDF / 重置」横着排会挤成一坨，
+   而且摘要条也得有地方放。分成两行，按钮行右对齐。
+*/
+@media screen and (max-width: 600px) {
+  .result-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--gap-sm);
+  }
+
+  .result-actions {
+    justify-content: flex-end;
+  }
+
+  .result-btn {
+    padding: 6px 12px;
+  }
+}
+
+/*
+   打印：结果条整条不进纸。
+   报告本身已经验证过是 4 页、每页都有实质内容，
+   加一条 sticky 栏进去会重新洗一遍分页，而它带的信息
+   （提纲摘要 + 三个按钮）在纸上没有意义 —— 纸上没有「重新编辑」这回事。
+*/
+@media print {
+  .result-bar {
+    display: none !important;
   }
 }

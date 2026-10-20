@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import SoftSpotMap from "@/components/SoftSpotMap";
 import ClaimTable from "@/components/ClaimTable";
 import QuestionList from "@/components/QuestionList";
 import HomeGround from "@/components/HomeGround";
+import ResetDialog from "@/components/ResetDialog";
 import { SITE } from "@/lib/config";
 import { parseManualRefs } from "@/lib/manual";
 import { FILL_OUTLINE_EVENT } from "@/lib/samples";
@@ -93,6 +94,7 @@ export default function Home() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
 
   const count = outline.trim().length;
   const canSubmit = count > 0 && !loading;
@@ -296,6 +298,49 @@ export default function Home() {
     }
   }
 
+  /**
+   * 回到输入页，但提纲留着。
+   *
+   * 为什么不顺手清空提纲：
+   * 点「重新编辑」的人十有八九是「这一条我想改几个字再跑一遍」。
+   * 清空的话他得重新粘一遍，那这个按钮就等于「从头再来」，
+   * 而「从头再来」是另一个按钮（重置）的事 —— 两个按钮必须干不同的事，
+   * 否则用户永远不知道该点哪个。
+   */
+  function handleReedit() {
+    setResult(null);
+    setMeta(null);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /**
+   * 真的清空。
+   *
+   * 这里连 outline 和 manualText 一起清 —— 这是它和「重新编辑」唯一的区别，
+   * 也是为什么它必须先过一个确认弹层。
+   */
+  function handleReset() {
+    setOutline("");
+    setManualText("");
+    setManualOpen(false);
+    setResult(null);
+    setMeta(null);
+    setError(null);
+    setResetOpen(false);
+    window.scrollTo({ top: 0 });
+  }
+
+  /**
+   * 取消回调要稳定。
+   *
+   * ResetDialog 的 keydown 监听依赖 onCancel 这个引用，
+   * 每次渲染都给一个新函数的话，那个 useEffect 会反复解绑重绑 ——
+   * 功能上没错，但按 Esc 的瞬间如果正赶上重绑，那一下就丢了。
+   * useCallback 让它整个生命周期里只有一份。
+   */
+  const closeReset = useCallback(() => setResetOpen(false), []);
+
   return (
     <main className={split ? "shell shell-wide" : "shell"}>
       {/*
@@ -309,6 +354,49 @@ export default function Home() {
       </header>
 
       {/*
+        结果页顶部的固定条：左边是折起来的提纲摘要，右边是三个动作。
+
+        为什么输入卡片要整个消失（连 DOM 都不渲染），而不是收成一小条：
+        一份报告有五六屏长，用户往下读的时候，顶上永远压着一个输入框，
+        会一直有种「我是不是还没提交」的错觉。收起来不是藏起来，
+        是承认「这一步已经做完了」—— 想看自己贴了什么，点摘要展开就行。
+
+        为什么摘要用原生 <details>：
+        不用写 state、不用管开合动画，键盘能 Tab 到、能回车展开，
+        读屏软件默认就会念成「可折叠」。手写一个折叠面板要补的就是这几样。
+      */}
+      {split && (
+        <div className="result-bar no-print">
+          <details className="outline-brief">
+            <summary>
+              提纲摘要 · 共 {count} 字
+            </summary>
+            <p>{outline}</p>
+          </details>
+
+          <div className="result-actions">
+            <button type="button" className="result-btn" onClick={handleReedit}>
+              重新编辑
+            </button>
+            <button
+              type="button"
+              className="result-btn"
+              onClick={() => window.print()}
+            >
+              存成 PDF
+            </button>
+            <button
+              type="button"
+              className="result-btn is-danger"
+              onClick={() => setResetOpen(true)}
+            >
+              重置
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/*
         workbench 是两栏的容器。
         没结果时它就是一个普通块，里面只有输入面板 —— 看起来和单栏一模一样。
         有结果时挂上 is-split，CSS 把它变成网格。
@@ -320,6 +408,15 @@ export default function Home() {
         两边对不上比排版难看严重得多。
       */}
       <div className={split ? "workbench is-split" : "workbench"}>
+        {/*
+          输入面板只在还没出结果时渲染。
+
+          为什么是「不渲染」而不是「display: none」：
+          出结果之后这一整块就没有用了，留在 DOM 里的话，
+          Tab 键还会走进去、读屏还会念出来、打印样式还得单独再藏一次。
+          用条件渲染，这三件事一起消失，代码上也一眼能看出「结果页没有输入框」。
+        */}
+        {!split && (
         <section className="panel">
           <label className="panel-label" htmlFor="outline">
             把你的开题提纲贴进来
@@ -409,6 +506,7 @@ export default function Home() {
             </button>
           </div>
         </section>
+        )}
 
         {/*
           右栏第一块：结论。
@@ -423,20 +521,13 @@ export default function Home() {
               以前板块都是 h2，和页面标题同级，屏幕阅读器读起来是平的。
             */}
             {/*
-              标题和「存成 PDF」并排一行。
-              为什么按钮放这里而不是页面右上角：
-              用户看完报告想带走它，这个动作发生在「看报告」的那一刻，
-              按钮就该在视线所在的这一块里，不该让他回头去找。
+              这里原来有一个「存成 PDF」按钮，现在挪到页面顶部的 result-bar 里了。
+              为什么不留着：同一个动作在同一个屏幕上出现两次，
+              用户会以为它们是两件事（比如一个存摘要、一个存全文），
+              于是两个都点一遍，然后发现一样 —— 这种疑惑没有任何收益。
             */}
             <div className="report-top">
               <h2 className="report-title">诊断报告</h2>
-              <button
-                type="button"
-                className="print-btn no-print"
-                onClick={() => window.print()}
-              >
-                存成 PDF
-              </button>
             </div>
             <p className="report-lede">
               共抽出 {result.claims.length} 条主张、{result.questions.length}{" "}
@@ -654,6 +745,18 @@ export default function Home() {
             : ""}
         </p>
       )}
+
+      {/*
+        确认弹层挂在 main 的最后。
+        它自己是 position: fixed，挂在哪儿都行 ——
+        放最后是因为它逻辑上属于「这一页的最后一个动作」，
+        写在前面的话，读代码时会在读内容之前先撞上一段模态逻辑。
+      */}
+      <ResetDialog
+        open={resetOpen}
+        onCancel={closeReset}
+        onConfirm={handleReset}
+      />
     </main>
   );
 }
