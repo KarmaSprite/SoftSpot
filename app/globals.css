@@ -200,6 +200,24 @@ body {
 }
 
 /*
+   overflow-x 用 clip 而不是 hidden。
+   这两个在「横向不许溢出」这件事上看起来一样，但有一个致命区别：
+   hidden 会把元素变成一个滚动容器，于是它里面所有 position: sticky
+   都改成相对这个容器吸附 —— 而容器跟内容一样高，永远吸不住。
+   实测：两栏工作台的右栏写了 sticky，滚动 400px 后它跟着往上跑了 400px。
+   clip 不创建滚动容器，sticky 照常相对视口工作。
+
+   保留上面那条 hidden 当兜底：clip 需要 Chrome 90 / Safari 16 以上，
+   老浏览器不认 @supports，会继续用 hidden，只是右栏不吸顶（能接受）。
+*/
+@supports (overflow-x: clip) {
+  html,
+  body {
+    overflow-x: clip;
+  }
+}
+
+/*
    字体变量写在 body 上，不写在 :root。
    原因：--font-geist-sans 是 next/font 挂在 <body> 的 className 上的，
    只有 body 及其子元素能看到它。写在 :root 上取不到，整个 font-family 会失效。
@@ -2494,6 +2512,26 @@ textarea {
     margin-top: 0;
     padding-top: 0;
     border-top: none;
+    /*
+       右栏钉住。
+       实测左栏（输入面板 + 地图）高 1057px，右栏只有 453px ——
+       右边下面空出 600px 白，看起来像内容没加载完。
+       与其把右栏硬拉长（拉长就是往卡片里灌水），不如让它跟着滚：
+       往下看地图的时候，结论一直停在右上角，两栏各干各的事。
+       高度 453 < 一屏 1000，钉住不会出现「钉住的东西比屏幕还高」那种尴尬。
+    */
+    position: sticky;
+    top: var(--gap-md);
+    align-self: start;
+    /*
+       钉住的东西比屏幕还高，就等于把下半截钉到屏幕外面去 ——
+       用户往下滚，它不动；滚到底，那半截还是看不见。
+       所以给它一个「不超过一屏」的上限，超了就在自己内部滚。
+       正常情况（7 条主张、2 条主场）报告只有 450-600px，碰不到这条上限；
+       只有警告很多、主场很多那种极端情况才会出现内部滚动条。
+    */
+    max-height: calc(100vh - 2 * var(--gap-md));
+    overflow-y: auto;
   }
 
   .masthead {
@@ -2711,4 +2749,352 @@ textarea {
 */
 .manual-count-on {
   color: var(--good);
+}
+/* ---------- 17. 两栏工作台 ---------- */
+
+/*
+   为什么要有这一节：
+   没出结果之前，页面是一栏（输入框 + 说明），视线从上往下走，最省事。
+   出了结果之后，用户要做的是「一边看结论、一边对照地图」，
+   一栏就得上下滚动，滚动一次就丢一次上下文 —— 图滚上去了，结论还在下面。
+
+   所以两栏不是「好看」，是「同一屏里能同时看到图和一个结论」。
+   这也是为什么只在有结果时才变两栏：没结果的时候右栏是空的，
+   变成两栏只会让左边挤成一半宽，白占地方。
+
+   三条硬约束（这一节所有规则都在为它们服务）：
+   1. 打印必须还是单栏。纸是竖的，A4 只有 182mm 宽，
+      劈成两栏每栏不到 90mm，主张表五列会挤成一条竖线。
+      所以网格只在 @media screen 里生效，打印时 workbench 退回普通块。
+   2. 窄屏必须还是单栏。手机上没有「同时看」这回事。
+   3. 收拢动画不许把布局抖一下。所以面板收缩只用 max-height，
+      不用 display: none，也不用改 width。
+*/
+
+/*
+   工作台容器。
+   没结果时它只是一个普通块，里面的 .panel 宽度由 .shell 的 max-width 决定，
+   看起来和以前完全一样 —— 这一步改版没有把没出结果时的页面变样。
+*/
+.workbench {
+  display: block;
+}
+
+/*
+   出了结果才挂 is-split。
+   820px 的 shell 放两栏太窄（每栏不到 400px），
+   所以带结果时 shell 放宽到 1180px，左右各约 560px。
+   为什么不是更宽：主张表最宽也就五列，再宽每列之间会拉开一大片空白，
+   眼睛从第一列扫到最后一列要横跨半个屏幕，反而更难读。
+*/
+.shell-wide {
+  max-width: 1180px;
+}
+
+/*
+   网格只在屏幕上有。
+   用 @media screen 而不是在 @media print 里再改回去，是因为
+   「打印」这件事应该由打印节一处说了算，别在两节里各写一半 ——
+   两处都写，以后改一栏的宽度就得记得改两个地方。
+*/
+@media screen and (min-width: 901px) {
+  .workbench.is-split {
+    display: grid;
+    /*
+       左栏 1fr 放地图，右栏 1.25fr 放结论。
+       右栏宽一点是因为结论那块是文字，文字越窄行数越多；
+       地图是方的，宽出来的部分只会变成空白，给它窄一点更划算。
+    */
+    grid-template-columns: 1fr 1.25fr;
+    align-items: start;
+    gap: var(--gap-lg) var(--gap-xl);
+  }
+
+  /*
+     为什么用「显式行列 + 通栏跨列」而不是 grid-template-areas：
+     第一版用的是 areas，把两块通栏都写成 grid-area: wide，
+     结果两块落在同一个格子里、上下叠在一起（实测两块 y 都是 1238），
+     主张表和问题清单直接糊成了一团。
+     areas 里一个名字只能占一块区域，同名就是同一个格子。
+     改成「左右两栏显式定位 + 通栏块只写 grid-column: 1 / -1」，
+     通栏块就会自动落到第 3、第 4 行，有几块排几块。
+  */
+  .workbench.is-split > .panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  /*
+     报告竖跨前两行，是因为它比左栏那两块矮，
+     让它在第一行待着的话，地图左边会空出一大块。
+     跨两行之后它的高度还是由内容决定（align-items: start），
+     不会被拉长 —— 拉长的话卡片底边会拖到地图下面去，很难看。
+  */
+  .workbench.is-split > .report {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    /*
+       单栏时 .report 顶着 44px 上边距和一条分隔线，因为它要跟上面的输入区断开。
+       两栏时它是右边那一列的开头，没有「上面」需要断开 ——
+       留着的话它比左边的面板低 44px，顶上还飘着一条不知道属于谁的横线。
+       实测差的就是这 44px（面板 y=153，报告 y=197）。
+    */
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    /*
+       右栏钉住。
+       实测左栏（输入面板 + 地图）高 1057px，右栏只有 453px ——
+       右边下面空出 600px 白，看起来像内容没加载完。
+       与其把右栏硬拉长（拉长就是往卡片里灌水），不如让它跟着滚：
+       往下看地图的时候，结论一直停在右上角，两栏各干各的事。
+       高度 453 < 一屏 1000，钉住不会出现「钉住的东西比屏幕还高」那种尴尬。
+    */
+    position: sticky;
+    top: var(--gap-md);
+    align-self: start;
+    /*
+       钉住的东西比屏幕还高，就等于把下半截钉到屏幕外面去 ——
+       用户往下滚，它不动；滚到底，那半截还是看不见。
+       所以给它一个「不超过一屏」的上限，超了就在自己内部滚。
+       正常情况（7 条主张、2 条主场）报告只有 450-600px，碰不到这条上限；
+       只有警告很多、主场很多那种极端情况才会出现内部滚动条。
+    */
+    max-height: calc(100vh - 2 * var(--gap-md));
+    overflow-y: auto;
+  }
+
+  .workbench.is-split > .workbench-map {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  /* 通栏：从第一列一直跨到最后一列，有几块就自动往下排几行 */
+  .workbench.is-split > .workbench-wide {
+    grid-column: 1 / -1;
+  }
+
+  /*
+     网格子项默认 min-width: auto，里面只要有一个不肯缩的东西
+     （长表格、长单词），它就会把整列撑宽，把另一栏挤出屏幕。
+     设成 0 才是「按格子给我的宽度来」。
+  */
+  .workbench.is-split > * {
+    min-width: 0;
+  }
+
+  /*
+     两栏里输入面板要收拢。
+     收拢是这一节唯一有动画的地方，也是最容易做坏的地方。
+
+     为什么只改 max-height 和 min-height，不改 width：
+     width 变化会触发每一行的重新折行，文字在动画过程中一直在跳；
+     max-height 只影响可视区域，文字位置不动，看起来是「卷上去」而不是「挤扁」。
+
+     为什么 min-height 从 240 收到 96 而不是 0：
+     收到 0 的话输入框整个消失，用户会以为提纲被清空了。
+     留 96px 正好露三行，一眼能看出「我贴的东西还在」。
+  */
+  .workbench.is-split > .panel .outline-input {
+    min-height: 96px;
+    max-height: 96px;
+    transition:
+      min-height 0.32s ease,
+      max-height 0.32s ease;
+  }
+
+  /*
+     收拢之后光标还在里面的话，用户一打字就只能看见最后一行。
+     但这里不能主动 blur —— 他可能是刚点完按钮，焦点本来就在按钮上。
+     所以只处理「聚焦时展开回去」这一件事：
+     点进输入框要改提纲，它就自动长回 240px，改完点别处再收回 96px。
+  */
+  .workbench.is-split > .panel .outline-input:focus {
+    min-height: 240px;
+    max-height: 46vh;
+  }
+}
+
+/*
+   地图那一块在两栏里要占满左栏宽度。
+   地图本身是 aspect-ratio: 1/1 的方框，外面这层给个宽度它自己会算高度。
+*/
+.workbench-map .map-block {
+  margin-top: var(--gap-md);
+}
+
+/*
+   通栏两块（主张表、问题清单）在网格里横跨两栏。
+   为什么不塞进右栏：主张表有五列，问题清单一条就是一整段，
+   塞进 560px 的右栏会变成细长条，读起来比单栏还累。
+*/
+.workbench-wide {
+  min-width: 0;
+}
+
+/*
+   出结果时的入场。
+   为什么要有：点完按钮到出结果隔了 30 秒，页面一直是同一个样子，
+   结果突然整块出现，用户会先愣一下「这是新出来的吗」。
+   一段 0.34 秒的淡入 + 上移 8px 就把这件事说清楚了。
+
+   为什么只动 opacity 和 transform：
+   这两个属性不触发重排，动画期间页面不会抖。
+   动 height / width / margin 的话，每一帧都要重新算布局，30 秒的报告会卡。
+*/
+@keyframes split-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media screen and (min-width: 901px) {
+  .workbench.is-split > .report,
+  .workbench.is-split > .workbench-map,
+  .workbench.is-split > .workbench-wide {
+    animation: split-in 0.34s ease both;
+  }
+
+  /* 地图晚 60ms 进场，让它看起来是跟着结论一起长出来的，而不是同时砸下来 */
+  .workbench.is-split > .workbench-map {
+    animation-delay: 0.06s;
+  }
+
+  /*
+     通栏两块用 nth-last-of-type 而不是 nth-of-type 去区分先后。
+     nth-of-type 按「同标签的兄弟里排第几」数，而 .workbench-map 也是 div，
+     它排第 1 —— 写 nth-of-type(1) 会选中地图，一条规则都不生效。
+     从后往前数更稳：问题清单是最后一个 div，主张表是倒数第二个。
+  */
+  .workbench.is-split > .workbench-wide:nth-last-of-type(2) {
+    animation-delay: 0.1s;
+  }
+
+  .workbench.is-split > .workbench-wide:nth-last-of-type(1) {
+    animation-delay: 0.14s;
+  }
+}
+
+/*
+   系统开了「减少动态效果」就一律不动。
+   这不是可选项：前庭功能障碍的人看位移动画会真的头晕。
+   上面那条 8px 位移很小，但对这类用户来说，能不能关掉才是关键。
+*/
+@media (prefers-reduced-motion: reduce) {
+  .workbench.is-split > .report,
+  .workbench.is-split > .workbench-map,
+  .workbench.is-split > .workbench-wide {
+    animation: none;
+  }
+
+  .workbench.is-split > .panel .outline-input {
+    transition: none;
+  }
+}
+
+/* ----- 报告标题行：标题 + 存成 PDF ----- */
+
+.report-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  flex-wrap: wrap;
+}
+
+/*
+   打印按钮做成描边而不是实心。
+   实心按钮在这个页面里只有一个含义：主操作（开始诊断）。
+   存 PDF 是次要动作，用同一套视觉会让人以为它也是「必须点」的一步。
+*/
+.print-btn {
+  padding: 7px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.print-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.print-btn:active {
+  transform: translateY(1px);
+}
+
+/*
+   两栏在窄屏（<= 900px）退回单栏。
+   900 这个数不是随手取的：1180 的 shell 减去左右 padding 和栏间距，
+   两栏各剩 460px 左右，再窄地图就开始压着主张表的列宽了。
+   宁可早点退回单栏，也不要在 800px 的窗口里硬塞两栏。
+*/
+@media screen and (max-width: 900px) {
+  .workbench.is-split {
+    display: block;
+  }
+
+  /*
+     单栏时输入面板不再收拢。
+     竖着排的时候，输入框缩到 96px 会让用户以为页面出了故障 ——
+     因为下面还有一整份报告要往下翻，输入框那么小反而碍事。
+  */
+  .workbench.is-split > .panel .outline-input {
+    min-height: 160px;
+    max-height: 40vh;
+  }
+
+  .report-top {
+    align-items: center;
+  }
+}
+
+/*
+   打印：退回单栏，且输入面板照旧藏掉（第 15 节那条规则管这里）。
+   这里只补一句 workbench 不许是网格 —— 打印样式节的 .panel { display: none }
+   管不到 grid-template-areas，网格还在的话，
+   藏掉 panel 之后 report 会被摆到左栏那个格子里，宽度只剩一半。
+*/
+@media print {
+  .workbench,
+  .workbench.is-split {
+    display: block;
+  }
+
+  /*
+     打印时 sticky 必须按回 static。
+     屏幕上那个 sticky 是为了「滚地图的时候结论跟着走」，
+     纸上没有滚动，浏览器会把 sticky 元素按它当前的吸附位置画出来 ——
+     实测打印媒体下 .report 的 position 还是 sticky，
+     这种元素在分页时可能被画到页首压在别的内容上面。
+     纸上的位置只该由文档流决定。
+  */
+  .report {
+    position: static;
+  }
+
+  .shell-wide {
+    max-width: none;
+  }
+
+  .report-top {
+    align-items: flex-end;
+  }
+
+  /* 打印时这一行只剩标题，按钮被 .no-print 藏掉，标题下面那条线要贴回去 */
+  .report-title {
+    flex: 1;
+  }
 }
