@@ -172,7 +172,7 @@ export const SAMPLE_OUTLINES: SampleOutline[] = [
       同一份提纲在两处显示成两个数，用户只会觉得有一处算错了。
       模型每次跑出来的主张会差一两条，所以这里认冻结那份为准。
     */
-    quality: 65,
+    quality: 67,
     text: LEARNING_ANALYTICS,
   },
   {
@@ -190,7 +190,7 @@ export const SAMPLE_OUTLINES: SampleOutline[] = [
   {
     name: "教育学·思辨",
     note: "纯观点和体会，方法名是「文献研究法」，最容易被追问「你怎么知道」",
-    quality: 21,
+    quality: 23,
     text: CURRICULUM_THOUGHT,
   },
 ];

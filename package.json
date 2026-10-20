@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "check": "node scripts/check-schema.mjs && node scripts/check-parse.mjs && node scripts/check-extract.mjs && node scripts/check-question.mjs && node scripts/check-evidence.mjs && node scripts/check-score.mjs && node scripts/check-warnings.mjs && node scripts/check-crossref-filter.mjs",
+    "check": "node scripts/check-schema.mjs && node scripts/check-parse.mjs && node scripts/check-extract.mjs && node scripts/check-question.mjs && node scripts/check-evidence.mjs && node scripts/check-score.mjs && node scripts/check-warnings.mjs && node scripts/check-crossref-filter.mjs && node scripts/check-explain.mjs",
     "check:arxiv": "node scripts/check-arxiv.mjs",
     "check:crossref": "node scripts/check-crossref.mjs",
     "check:retrieval": "node scripts/check-retrieval.mjs",
@@ -18,7 +18,8 @@
     "check:websearch": "node scripts/check-websearch.mjs",
     "check:manual": "node scripts/check-manual.mjs",
     "check:nearest": "node scripts/check-nearest.mjs",
-    "check:crossref-filter": "node scripts/check-crossref-filter.mjs"
+    "check:crossref-filter": "node scripts/check-crossref-filter.mjs",
+    "check:explain": "node scripts/check-explain.mjs"
   },
   "dependencies": {
     "next": "15.5.28",

@@ -58,7 +58,33 @@ type AnalyzeResponse = {
    * 字段形状对齐 route.ts 里 evidence 那一段。
    */
   evidence: EvidenceItem[];
+  /**
+   * 每条主张的检索明细。
+   *
+   * 主张表点开时「最像的那一篇」从这里取。字段形状对齐 route.ts 里 search 那一段，
+   * 但只声明界面真正用到的那几项 —— 服务端多给不会炸，
+   * 而少给一项（比如以后删掉 totalHits）这里会立刻报出来。
+   */
+  search: SearchItem[];
   elapsedMs: number;
+};
+
+/** 一条主张的检索明细，跟 lib/explain.ts 的 ExplainSearch 同形。 */
+type SearchItem = {
+  claimId: string;
+  score: number;
+  reason: string;
+  totalHits: number;
+  bestHit: {
+    key: string;
+    source: string;
+    title: string;
+    year: string;
+    authors: string[];
+    venue: string;
+    url: string;
+  } | null;
+  matched: string[];
 };
 
 /** 一条主张的证据明细，跟 lib/nearest.ts 的 EvidenceLite 同形。 */
@@ -78,6 +104,8 @@ type Meta = {
   blindClaimIds: string[];
   manualRefCount: number;
   evidence: EvidenceItem[];
+  /** 每条主张的检索明细，主张表展开时看「最像的是哪一篇」。 */
+  search: SearchItem[];
   /**
    * 这份报告是不是「离线示例」放出来的录像。
    *
@@ -207,6 +235,13 @@ export default function Home() {
         blindClaimIds: payload.blindClaimIds,
         manualRefCount: payload.manualRefCount,
         evidence: payload.evidence,
+        /*
+          离线示例的冻结数据里带了 search 段（2026-10-21 重冻时加的）。
+          老数据没有这个字段时 ?? [] 兜住 —— 展开区会明说
+          「这份报告是存好的示例，当时没把检索明细存下来」，
+          不会编一篇假论文出来。
+        */
+        search: payload.search ?? [],
         instantName: sample.name,
       });
 
@@ -285,6 +320,12 @@ export default function Home() {
          * 不会编一个维度名出来。
          */
         evidence: data.evidence ?? [],
+        /**
+         * 检索明细同样用 ?? [] 兜住。
+         * 拿不到时主张表的展开区会说「这次没把检索明细带回来」，
+         * 而不是编一篇最像的论文。
+         */
+        search: data.search ?? [],
         /**
          * 真跑出来的报告，没有录像来源。
          * 上一次如果是点离线示例看的，这里必须清掉，
@@ -722,6 +763,8 @@ export default function Home() {
               claims={result.claims}
               placeholder={meta?.scoresArePlaceholder ?? false}
               blindClaimIds={meta?.blindClaimIds ?? []}
+              evidence={meta?.evidence ?? []}
+              search={meta?.search ?? []}
             />
           </div>
         )}

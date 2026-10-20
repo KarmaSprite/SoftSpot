@@ -3759,3 +3759,272 @@ textarea {
     letter-spacing: -0.5px;
   }
 }
+
+/* ===============================================================
+   20. 主张明细的展开区
+
+   每行点开之后要摊开四件事：这两个分是什么意思、最像的是哪一篇、
+   四个证据维度各得几分、该改什么。
+
+   为什么用 grid-template-rows 做动画而不是 max-height：
+   max-height 必须写一个足够大的死值（比如 800px），
+   实际内容只有 200px 时，过渡的前 75% 时间都在演"从 800 缩到 200"，
+   看起来像卡了一下才展开。0fr → 1fr 是按真实高度插值的，
+   内容多长就动多长，不需要猜一个数字。
+   =============================================================== */
+
+/* 能点开的那几行给个手型，不然用户不知道这里能点 */
+.claim-table tbody tr.is-clickable {
+  cursor: pointer;
+}
+
+/* 展开时行底色留住，不然鼠标移开就分不清刚才点的是哪条 */
+.claim-table tbody tr.is-clickable.is-open,
+.claim-table tbody tr.is-clickable.is-open:hover {
+  background: var(--sunken);
+}
+
+/*
+  箭头放在序号左边，收起时朝右、展开时朝下。
+  为什么不放最右边：表格右侧两列是分数条，箭头挤进去会跟数字抢位置；
+  放序号旁边读起来是「这一条能展开」，正好在行的起点。
+*/
+.row-caret {
+  display: inline-block;
+  width: 12px;
+  margin-right: 4px;
+  color: var(--faint);
+  font-size: 10px;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 0.2s ease;
+}
+
+.row-caret.is-open {
+  transform: rotate(90deg);
+}
+
+/*
+  展开区那一行的单元格：padding 归零，由内层自己管。
+  不归零的话收起状态下还会留 14px 的空白，表格行距会莫名其妙变宽。
+*/
+.claim-detail-cell {
+  padding: 0 !important;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.claim-detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.26s ease;
+}
+
+.claim-detail.is-open {
+  grid-template-rows: 1fr;
+}
+
+.claim-detail-inner {
+  overflow: hidden;
+}
+
+/*
+  展开区的内容。
+  左边一条竖线，跟「你的主场」里那条建议线是同一个手法 ——
+  这一块是"关于上面那行的注解"，不是新的一行数据。
+*/
+.claim-detail-inner > * {
+  margin-left: 14px;
+}
+
+.claim-detail-inner {
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+}
+
+.claim-detail-headline {
+  margin-top: 14px;
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+/* 块标题：比正文小一档，比注释重一档 */
+.claim-ref-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* ---- 最像的那一篇 ---- */
+
+.claim-ref {
+  margin-top: 14px;
+}
+
+.claim-ref-title {
+  display: block;
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  text-decoration: underline;
+  text-decoration-color: var(--accent-soft);
+  text-underline-offset: 3px;
+}
+
+.claim-ref-title:hover {
+  text-decoration-color: var(--accent);
+}
+
+.claim-ref-meta {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.claim-ref-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+/* 没有参考时整块退成中性，不要用强调色假装"有一篇很像的" */
+.claim-ref.is-empty .claim-ref-note {
+  color: var(--muted);
+}
+
+/* ---- 四个证据维度 ---- */
+
+.claim-dims {
+  margin-top: 16px;
+}
+
+.claim-dim-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+  一行一个维度：名字 / 条 / 分 / 命中的词。
+  用 grid 而不是 flex：四列要对齐，flex 下每行宽度按内容算，
+  「说得具体吗」比「有没有数字」长，四行会各自错开。
+*/
+.claim-dim {
+  display: grid;
+  grid-template-columns: 84px 72px 28px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: var(--fs-xs);
+}
+
+.claim-dim-name {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.claim-dim-bar {
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--line-soft);
+  overflow: hidden;
+}
+
+.explain-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+}
+
+/*
+  三档颜色跟地图上四个角是同一套色，不另起一套 ——
+  同一个分数在报告里两个地方出现，颜色必须一致。
+*/
+.explain-fill-good {
+  background: var(--q-home);
+}
+
+.explain-fill-mid {
+  background: var(--q-foggy);
+}
+
+.explain-fill-low {
+  background: var(--q-weak);
+}
+
+.claim-dim-score {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.claim-dim-hits {
+  color: var(--faint);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ---- 该改什么 ---- */
+
+.claim-advice {
+  margin: 16px 0 16px;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+/* 窄屏：四列压成两行，条和分数留在同一行，命中的词单独一行 */
+@media (max-width: 600px) {
+  .claim-dim {
+    grid-template-columns: 76px 56px 26px;
+    gap: 8px;
+  }
+
+  .claim-dim-hits {
+    grid-column: 1 / -1;
+    padding-left: 0;
+  }
+
+  .claim-detail-inner {
+    padding-left: 10px;
+  }
+
+  .claim-detail-inner > * {
+    margin-left: 0;
+  }
+}
+
+/*
+  打印时不带展开区。
+  理由：纸上是"读一遍"的形态，展开是交互态；
+  而且打印前展开的那一行会把整份报告撑长、把后面的卡片挤到下一页。
+*/
+@media print {
+  .claim-detail-row {
+    display: none !important;
+  }
+
+  .row-caret {
+    display: none;
+  }
+}
+
+/* 用户要求减少动效时，展开也不要有过程，直接到位 */
+@media (prefers-reduced-motion: reduce) {
+  .claim-detail {
+    transition: none;
+  }
+
+  .row-caret {
+    transition: none;
+  }
+}

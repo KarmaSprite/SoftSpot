@@ -381,6 +381,14 @@ export async function POST(request: Request) {
       sources: item.sources,
       bestHit: item.overlap.bestHit,
       /**
+       * 这条主张和最像那篇共有的词。
+       *
+       * 为什么要送出去：主张表点开之后要回答「凭什么是这一篇最像」。
+       * 只给一个标题，用户没法验证；把共有的词列出来，
+       * 他自己就能看出「哦，是因为都写了 tone、cantonese、speaker」。
+       */
+      matched: item.overlap.matched,
+      /**
        * 中文网页那一步怎么了。
        * off = 英文库分数够高，没花这个钱；skipped = 没配 key；
        * ok = 查了；failed = 查挂了。
