@@ -28,6 +28,7 @@ import {
   type ThemeMode,
 } from "@/lib/theme";
 import { SAMPLE_OUTLINES, randomOutline, requestFillOutline } from "@/lib/samples";
+import { INSTANT_SAMPLES, requestInstantResult } from "@/lib/samples-instant";
 
 /* ---------- 类型 ---------- */
 
@@ -658,6 +659,31 @@ export default function DebugPanel() {
               标完都用真模型跑过一遍，跟报告里的纵轴对得上。
               点一下只填进输入框，不会自动开始诊断 —— 连点「随机凑一段」
               每次都不一样，用来验证「文字通顺但没证据」的提纲不会被夸成好选题。
+            </p>
+          </div>
+
+          {/* ----- 离线示例 ----- */}
+          <div className="dbg-group">
+            <span className="dbg-group-title">离线示例</span>
+
+            {INSTANT_SAMPLES.map((sample, index) => (
+              <button
+                key={sample.name}
+                type="button"
+                className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${sample.quality} dbg-action-instant`}
+                onClick={() => requestInstantResult(index)}
+                title={sample.note}
+              >
+                <span className="dbg-action-quality">{sample.quality}</span>
+                <span>{sample.name}</span>
+              </button>
+            ))}
+
+            <p className="dbg-note">
+              上面这两条是真跑过一遍、把结果存下来的 —— 点一下直接出报告，
+              不联网、不花钱、不用等 30 秒。数据是 2026-10-20 用 deepseek-chat
+              跑出来的原样，耗时和花费照实显示，别把它当成刚算的。
+              第一条能跑出「你的主场」，第二条满屏红点，正好对比着看。
             </p>
           </div>
 

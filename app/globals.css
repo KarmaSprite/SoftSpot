@@ -477,6 +477,24 @@ textarea {
   line-height: 1.7;
 }
 
+/*
+  录像自报家门那一行。
+
+  为什么不用黄色警告框：
+  这不是出错，是"你需要知道这是存好的"。用警告色会让演示现场
+  看起来像系统在报警，而它其实运行得完全正常。
+  左边一道细竖线，跟正文分开，够了。
+*/
+.report-instant {
+  margin-top: var(--gap-sm);
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+  max-width: 620px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+}
+
 .report-head {
   margin-top: var(--gap-xl);
 }

@@ -9,6 +9,7 @@ import HomeGround from "@/components/HomeGround";
 import { SITE } from "@/lib/config";
 import { parseManualRefs } from "@/lib/manual";
 import { FILL_OUTLINE_EVENT } from "@/lib/samples";
+import { INSTANT_SAMPLES, LOAD_INSTANT_EVENT } from "@/lib/samples-instant";
 import type { AnalysisResult, Claim, Question } from "@/lib/types";
 
 /**
@@ -74,6 +75,14 @@ type Meta = {
   blindClaimIds: string[];
   manualRefCount: number;
   evidence: EvidenceItem[];
+  /**
+   * 这份报告是不是「离线示例」放出来的录像。
+   *
+   * 为什么要单独记一笔：录像里那个「耗时 38.1 秒、花费 0.0446 元」
+   * 是当时真跑的花费，不是这一次的。不标出来，用户会以为刚刚花了这些钱。
+   * 演示时可以含糊，报告本身不能含糊。
+   */
+  instantName: string | null;
 };
 
 export default function Home() {
@@ -156,6 +165,51 @@ export default function Home() {
     return () => window.removeEventListener(FILL_OUTLINE_EVENT, onFill);
   }, []);
 
+  /**
+   * 接「把这份离线结果直接摆出来」这条消息。
+   *
+   * 为什么不走 handleSubmit：
+   * 走一遍请求才是真花钱的那条路，而离线示例的全部意义是"不花钱、不等"。
+   * 这里直接把存好的响应摊进 state，跟真响应走的是同一套渲染。
+   *
+   * 为什么把 loading 也清掉：
+   * 用户可能在上一次真跑还没回来的时候点了这个按钮。
+   * 不清的话，转圈会一直在，报告却已经换成了录像，看起来像卡住了。
+   */
+  useEffect(() => {
+    function onLoad(event: Event) {
+      const index = (event as CustomEvent<number>).detail;
+      const sample = INSTANT_SAMPLES[index];
+      if (!sample) return;
+
+      const { payload } = sample;
+
+      setLoading(false);
+      setError(null);
+      setOutline(sample.outline);
+      setResult({ claims: payload.claims, questions: payload.questions });
+      setMeta({
+        elapsedMs: payload.elapsedMs,
+        costYuan: payload.costYuan,
+        totalTokens: payload.usage.totalTokens,
+        warnings: payload.warnings,
+        scoresArePlaceholder: payload.scoresArePlaceholder,
+        blindClaimIds: payload.blindClaimIds,
+        manualRefCount: payload.manualRefCount,
+        evidence: payload.evidence,
+        instantName: sample.name,
+      });
+
+      // 结果在页面下方，把视线带过去 —— 不然用户点完按钮看不到任何变化
+      requestAnimationFrame(() => {
+        document.querySelector(".report")?.scrollIntoView({ block: "start" });
+      });
+    }
+
+    window.addEventListener(LOAD_INSTANT_EVENT, onLoad);
+    return () => window.removeEventListener(LOAD_INSTANT_EVENT, onLoad);
+  }, []);
+
   async function handleSubmit() {
     if (!canSubmit) return;
 
@@ -221,6 +275,12 @@ export default function Home() {
          * 不会编一个维度名出来。
          */
         evidence: data.evidence ?? [],
+        /**
+         * 真跑出来的报告，没有录像来源。
+         * 上一次如果是点离线示例看的，这里必须清掉，
+         * 否则真报告顶上还挂着「这是存好的结果」，那才是假话。
+         */
+        instantName: null,
       });
     } catch (e) {
       /**
@@ -382,6 +442,19 @@ export default function Home() {
               共抽出 {result.claims.length} 条主张、{result.questions.length}{" "}
               个问题。先看哪些是你站得住的地方，再看哪几条最危险。
             </p>
+
+            {/*
+              录像要自报家门。
+              下面那行「耗时 38.1 秒 / 花费 0.0446 元」是当时真跑花的钱，
+              不是这一次的。不写清楚，用户会以为刚点一下又花了四分钱。
+              用中性灰的小字，不用警告色 —— 这不是错误，只是需要说清楚。
+            */}
+            {meta?.instantName && (
+              <p className="report-instant">
+                这份报告是存好的示例结果（{meta.instantName}），不是刚刚算的。
+                下面的耗时和花费是当时真跑一次的记录。
+              </p>
+            )}
 
             {/* 元信息：花了多久、多少钱。用 dl 而不是几个 span，因为这是"名称-数值"对 */}
             {meta && (
