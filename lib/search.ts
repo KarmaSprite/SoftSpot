@@ -28,6 +28,7 @@ import {
   type WebHit,
   type WebSearchOutcome,
 } from "./websearch.ts";
+import type { ManualRef } from "./manual.ts";
 import type { Claim, RetrievalQuery } from "./schema.ts";
 
 /* ---------------------------------------------------------------
@@ -78,6 +79,8 @@ export type ClaimSearch = {
   webStatus: WebStatus;
   /** 中文网页查回来几条（去重后） */
   webHitCount: number;
+  /** 用户自己粘的文献算进这条主张的有几条（去重后） */
+  manualHitCount: number;
 };
 
 /** 一条主张的检索结局。整条失败只在"没有检索意图"时发生。 */
@@ -291,6 +294,7 @@ export async function searchClaim(
   claim: Claim,
   intent: RetrievalQuery | null,
   searchers: Searchers = REAL_SEARCHERS,
+  manualRefs: ManualRef[] = [],
 ): Promise<ClaimSearchOutcome> {
   const startedAt = Date.now();
 
@@ -347,7 +351,7 @@ export async function searchClaim(
   const sourcesAnswered = sources.filter((source) => source.answered).length;
 
   /*
-     先算一次只有英文库的分数。
+     先算一次只有英文库 + 你粘的文献的分数（不含中文网页）。
      这个分数有两个用途：一是决定要不要补查中文，二是万一中文没查成时的最终结果。
   */
   const englishOnly = scoreOverlap({
@@ -355,6 +359,7 @@ export async function searchClaim(
     intent,
     arxivHits: arxiv.hits,
     crossrefHits: crossref.hits,
+    manualRefs,
     sourcesAnswered,
   });
 
@@ -411,6 +416,7 @@ export async function searchClaim(
           arxivHits: arxiv.hits,
           crossrefHits: crossref.hits,
           webHits,
+          manualRefs,
           sourcesAnswered,
         })
       : englishOnly;
@@ -423,10 +429,18 @@ export async function searchClaim(
       overlap,
       sources,
       intent,
-      rawHitCount: arxiv.hits.length + crossref.hits.length + webHits.length,
+      rawHitCount: arxiv.hits.length + crossref.hits.length + webHits.length + manualRefs.length,
       elapsedMs: Date.now() - startedAt,
       webStatus,
       webHitCount: webHits.length,
+      /*
+         你粘的文献里，参与这条主张比对的条数。
+         直接就是 manualRefs.length —— 一份文献库服务所有主张，
+         每条主张都跟同一批文献比一遍，不是一条主张配一篇。
+         这里如实报"算了几篇"，不报"最像的那篇是不是你粘的"
+         （那件事 overlap.bestHit.source === "manual" 已经说清楚了）。
+      */
+      manualHitCount: manualRefs.length,
     },
   };
 }
@@ -463,6 +477,7 @@ export async function searchAllClaims(
   claims: Claim[],
   intents: RetrievalQuery[],
   searchers: Searchers = REAL_SEARCHERS,
+  manualRefs: ManualRef[] = [],
 ): Promise<SearchAllOutcome> {
   const byClaimId = new Map<string, ClaimSearch>();
   const warnings: string[] = [];
@@ -473,7 +488,7 @@ export async function searchAllClaims(
 
   for (const claim of claims) {
     const intent = intentById.get(claim.id) ?? null;
-    const result = await searchClaim(claim, intent, searchers);
+    const result = await searchClaim(claim, intent, searchers, manualRefs);
 
     if (!result.ok) {
       warnings.push(`「${shorten(claim.text)}」这条主张没查成：${result.error}`);

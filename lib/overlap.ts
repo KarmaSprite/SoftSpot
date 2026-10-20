@@ -17,6 +17,7 @@ import type { Claim, RetrievalQuery } from "./schema.ts";
 import type { ArxivHit } from "./arxiv.ts";
 import type { CrossrefHit } from "./crossref.ts";
 import type { WebHit } from "./websearch.ts";
+import type { ManualRef } from "./manual.ts";
 import { looksLikePaper, cleanTitle } from "./websearch.ts";
 import {
   scoreCorpus,
@@ -31,7 +32,7 @@ import {
 
 /** 统一后的文献条目 —— 三个源的字段名不一样，先抹平。 */
 export type UnifiedHit = {
-  source: "arxiv" | "crossref" | "web";
+  source: "arxiv" | "crossref" | "web" | "manual";
   /** arXiv id、DOI 或归一化 url，全局唯一，用来去重 */
   key: string;
   title: string;
@@ -120,6 +121,31 @@ export function fromWeb(hit: WebHit): UnifiedHit {
  */
 function cleanTitleForScoring(title: string): string {
   return cleanTitle(title);
+}
+
+/**
+ * 用户自己粘进来的中文文献。
+ *
+ * 跟中文网页的关键区别：**不打折**。
+ * 网页打折是因为里面混着课程广告、教材征订页 —— 那些能命中共同词，
+ * 却不是在说"我做过这个研究"。而用户粘进来的，是他自己确认过的论文，
+ * 哪怕只给了标题和期刊名，它也是"别人做过"的硬证据。
+ *
+ * key 用归一化标题：用户手上没有 DOI，也没法保证写对。
+ * 归一化之后同一篇被粘两遍（一次带期刊名一次不带）会被 dedupeHits 合掉 ——
+ * 注意 parseManualRefs 已经按标题去重过一遍，这里是第二道保险，
+ * 防的是"手工文献和 arXiv/Crossref 查到的是同一篇"。
+ */
+export function fromManual(ref: ManualRef): UnifiedHit {
+  return {
+    source: "manual",
+    key: `manual:${normalizeTitle(ref.title)}`,
+    title: ref.title,
+    year: ref.year,
+    authors: [],
+    venue: ref.venue,
+    url: "",
+  };
 }
 
 /**
@@ -240,6 +266,18 @@ export const WEB_PAGE_WEIGHT = 0.7;
 /** 学术库站点或标题像论文的网页，不打折 —— 它本来就是论文。 */
 export const WEB_PAPER_WEIGHT = 1.0;
 
+/**
+ * 用户自己粘的文献的权重。
+ *
+ * 跟学术库一样给 1.0。理由：这是用户确认过的论文，
+ * 不是我们在网上捞到的模糊结果。给他打折等于说"你说的不算"。
+ *
+ * 唯一的顾虑是用户可能粘一堆不相关的标题把分数抬上去 ——
+ * 但那要求标题跟主张真有共同词，随便粘几篇是抬不动的。
+ * 真怕这个的话，站长的 SITE.manualRefs 开关能整个关掉。
+ */
+export const MANUAL_WEIGHT = 1.0;
+
 export type OverlapInput = {
   claim: Claim;
   intent: RetrievalQuery | null;
@@ -247,27 +285,39 @@ export type OverlapInput = {
   crossrefHits: CrossrefHit[];
   /** 中文网页命中。没查或没配 key 时是空数组 */
   webHits?: WebHit[];
+  /** 用户自己粘的中文文献。没开这个功能或没粘时是空数组 */
+  manualRefs?: ManualRef[];
   /** 有几个源真的答话了。0 表示分数不可信，要显式告诉用户 */
   sourcesAnswered: number;
 };
 
 export function scoreOverlap(input: OverlapInput): OverlapResult {
-  const { claim, intent, arxivHits, crossrefHits, webHits = [], sourcesAnswered } = input;
+  const {
+    claim,
+    intent,
+    arxivHits,
+    crossrefHits,
+    webHits = [],
+    manualRefs = [],
+    sourcesAnswered,
+  } = input;
 
   const unified = dedupeHits([
     ...arxivHits.map(fromArxiv),
     ...crossrefHits.map(fromCrossref),
     ...webHits.map(fromWeb),
+    ...manualRefs.map(fromManual),
   ]);
 
   /*
       每篇的权重。
       学术库（arXiv / Crossref）和"看起来像论文的网页"都是 1.0，
-      普通网页是 WEB_PAGE_WEIGHT。
+      普通网页是 WEB_PAGE_WEIGHT，用户自己粘的也是 1.0。
       注意这里要跟 unified 同序 —— 所以按统一后的条目重新算，
       不能直接用 webHits 的顺序（去重和拼接都会改变下标）。
   */
   const weights = unified.map((hit) => {
+    if (hit.source === "manual") return MANUAL_WEIGHT;
     if (hit.source !== "web") return WEB_PAPER_WEIGHT;
     // 站点名在 unified 里放在 venue 字段上
     return looksLikePaper({ site: hit.venue, title: hit.title }) ? WEB_PAPER_WEIGHT : WEB_PAGE_WEIGHT;
@@ -342,6 +392,10 @@ export function scoreOverlap(input: OverlapInput): OverlapResult {
  * 为什么不用连续的语气（"相似度 63.2%"）：
  * 用户拿到的不是数字，是"我该改哪里"。数字只用来排点，
  * 文案要告诉他下一步做什么。
+ *
+ * 最像的那一篇是用户自己粘的时候，开头换一个说法 ——
+ * 不然会出现「查回来 12 篇，最像的是 2023 年《…》」这种让人困惑的话：
+ * 那篇不是我们查回来的，是他自己给的。
  */
 function buildReason(
   score: number,
@@ -354,20 +408,27 @@ function buildReason(
   const where = best.year ? `${best.year} 年` : "年份不明";
   const venue = best.venue ? `《${best.venue}》` : "";
 
+  /*
+      你自己粘的那一篇最像时，文案要说明"这是你给的"。
+      这件事很重要：用户会以为是我们查到的，从而高估这份报告的检索覆盖。
+  */
+  const selfPrefix = best.source === "manual" ? "你自己粘的那篇" : "";
+  const selfTail = best.source === "manual" ? "（这条分里算上了你粘的文献）" : "";
+
   if (score >= 70) {
-    return `撞车了。${where}${venue}那篇「${title}」跟你这条几乎是一回事，${strongCount} 篇都对得上。这条主张得换个角度，或者明确说清你比它多做的是什么。`;
+    return `撞车了。${selfPrefix}${where}${venue}「${title}」跟你这条几乎是一回事，${strongCount} 篇都对得上。这条主张得换个角度，或者明确说清你比它多做的是什么。${selfTail}`;
   }
 
   if (score >= 50) {
-    return `有重合。最像的是${where}「${title}」，${strongCount} 篇沾边。别人做过相邻的事，但没做到你这个位置 —— 答辩时要把"我跟它差在哪"讲清楚。`;
+    return `有重合。最像的是${selfPrefix}${where}「${title}」，${strongCount} 篇沾边。别人做过相邻的事，但没做到你这个位置 —— 答辩时要把"我跟它差在哪"讲清楚。${selfTail}`;
   }
 
   if (score >= 25) {
-    return `沾一点边。最像的是${where}「${title}」，但共有的词不多。大概率是同一个大领域里的另一件事。`;
+    return `沾一点边。最像的是${selfPrefix}${where}「${title}」，但共有的词不多。大概率是同一个大领域里的另一件事。${selfTail}`;
   }
 
   if (totalHits > 0) {
-    return `基本没人做过。查回来 ${totalHits} 篇，最像的那篇「${title}」也只沾了个边。这是你的机会，但也要准备好"为什么别人没做"这个问题。`;
+    return `基本没人做过。查回来 ${totalHits} 篇，最像的那篇「${title}」也只沾了个边。这是你的机会，但也要准备好"为什么别人没做"这个问题。${selfTail}`;
   }
 
   return "查回来一篇都没有。";

@@ -31,6 +31,8 @@ import { generateQuestions } from "@/lib/question";
 import { translateClaims } from "@/lib/retrieval";
 import { searchAllClaims } from "@/lib/search";
 import { estimateSearchCost, isWebSearchConfigured } from "@/lib/websearch";
+import { parseManualRefs } from "@/lib/manual";
+import { SITE } from "@/lib/config";
 import { defensibilityFromRisk } from "@/lib/similarity";
 import { AnalysisResultSchema, formatIssues } from "@/lib/schema";
 import type { Claim, Question } from "@/lib/types";
@@ -47,6 +49,12 @@ const BodySchema = z.object({
    * 一件事只在一个地方定义。
    */
   outline: z.string(),
+  /**
+   * 用户自己粘的中文文献，一行一条。可选 ——
+   * 不传、传空串、传一堆认不出来的东西，都不该让整个请求失败。
+   * 所以这里只要它是字符串，解析交给 lib/manual.ts，认不出来记警告。
+   */
+  manualRefs: z.string().optional(),
 });
 
 /**
@@ -114,6 +122,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "提纲是空的，先贴点内容进来。" }, { status: 400 });
   }
 
+  /**
+   * 解析用户粘的中文文献。
+   *
+   * 两件事必须在这里做掉，不能等检索的时候：
+   *   1. 开关判断。SITE.manualRefs 关掉时**直接忽略**传上来的内容，
+   *      并明说一句 —— 不能只在前端藏输入框，接口谁都能直接 POST。
+   *   2. 认不出来的行要提前告诉用户。等到报告出来才发现
+   *      「我粘的 5 篇怎么只算了 1 篇」，他会以为程序坏了。
+   *
+   * 这一步不联网、不花钱，放在调模型之前，失败了也不浪费一次分析的钱。
+   */
+  const manualWarnings: string[] = [];
+  let manualRefs: ReturnType<typeof parseManualRefs>["refs"] = [];
+
+  const rawManual = (parsedBody.data.manualRefs ?? "").trim();
+  if (rawManual !== "") {
+    if (!SITE.manualRefs) {
+      manualWarnings.push(
+        "站长关掉了「手工粘贴中文文献」这个功能，这次没算你粘的内容。",
+      );
+    } else {
+      const parsedManual = parseManualRefs(rawManual);
+      manualRefs = parsedManual.refs;
+      manualWarnings.push(...parsedManual.warnings);
+    }
+  }
+
   /* ---------- 造模型客户端 ---------- */
 
   const client = createModelClient({ apiKey });
@@ -125,7 +160,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: extracted.error }, { status: 422 });
   }
 
-  const warnings: string[] = [...extracted.warnings];
+  const warnings: string[] = [...extracted.warnings, ...manualWarnings];
 
   const rawClaims = extracted.data.claims;
 
@@ -191,7 +226,7 @@ export async function POST(request: Request) {
   */
   const [questioned, searched] = await Promise.all([
     generateQuestions(stagedClaims, outline, client.call, { warnedClaimIds }),
-    searchAllClaims(stagedClaims, translated.data),
+    searchAllClaims(stagedClaims, translated.data, undefined, manualRefs),
   ]);
 
   if (!questioned.ok) {
@@ -339,6 +374,8 @@ export async function POST(request: Request) {
        */
       webStatus: item.webStatus,
       webHitCount: item.webHitCount,
+      /** 你粘的文献里，有几条参与了这条主张的比对 */
+      manualHitCount: item.manualHitCount,
     })),
     /**
      * 纵轴分数的明细。
@@ -356,6 +393,16 @@ export async function POST(request: Request) {
     })),
     /** 有几个源答话了（全部主张里最差的那个），0 表示整份报告的分数都不可信。 */
     minSourcesAnswered: searched.minSourcesAnswered,
+    /**
+     * 你粘的中文文献，最后真的认出来几条。
+     *
+     * 为什么要回这个数：用户粘了 5 行、界面上什么都没变，
+     * 他会以为功能坏了。把这个数和「认出来几条」一起给他，
+     * 他就能自己判断是标题写得太短还是根本没生效。
+     */
+    manualRefCount: manualRefs.length,
+    /** 这个功能当前开没开（站长开关）。前端据此决定显不显示输入框。 */
+    manualRefsEnabled: SITE.manualRefs,
     elapsedMs: Date.now() - startedAt,
   });
 }
