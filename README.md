@@ -57,30 +57,80 @@ npm start
 
 ## 环境变量
 
-第 5 步接入模型后才需要。在项目根目录建 `.env.local`（**此文件已被 `.gitignore` 忽略，永远不要提交**）：
+必需。在项目根目录建 `.env.local`（**此文件已被 `.gitignore` 忽略，永远不要提交**）：
 
 ```
 DEEPSEEK_API_KEY=sk-你的key
 ```
+
+只有这一个变量是必需的。没配也能打开页面、能输入，点「开始诊断」时会直接告诉你缺什么，不会静默失败。
 
 ## 目录结构
 
 ```
 pre-defense/
 ├─ app/
-│  ├─ layout.tsx        根布局
-│  ├─ page.tsx          首页（第 2 步起改成输入框）
-│  ├─ globals.css       全部样式都写在这里
-│  └─ api/analyze/      API 路由（第 5 步建）
-├─ lib/                 类型、模型调用、检索、评分（第 3 步起逐个建）
-├─ docs/                Prompt 链、技术文档（第 23 步起）
-├─ plan.md              26 步实施计划与进度
-└─ README.md            本文件
+│  ├─ layout.tsx              根布局
+│  ├─ page.tsx                首页：输入提纲、渲染报告
+│  ├─ globals.css             全部样式（含深色模式与打印样式）
+│  └─ api/
+│     ├─ analyze/route.ts     主接口：抽取 → 质询 + 检索 → 组装
+│     ├─ health/route.ts      体检：key 配没配（不回传 key 本身）
+│     └─ dev-info/route.ts    调试面板用：版本、路由表
+├─ components/
+│  ├─ SoftSpotMap.tsx         软肋地图（手写 div 散点图）
+│  ├─ ClaimTable.tsx          主张明细表
+│  ├─ QuestionList.tsx        质询问题清单
+│  ├─ HomeGround.tsx          「你的主场」
+│  └─ DebugPanel.tsx          开发期中文调试面板（生产环境不渲染）
+├─ lib/
+│  ├─ types.ts                主张 / 问题的数据结构
+│  ├─ schema.ts               zod 校验，每层输出都过一遍
+│  ├─ parse.ts                从模型返回的脏文本里抠 JSON
+│  ├─ prompts.ts              两段 system prompt 与消息组装
+│  ├─ deepseek.ts             DeepSeek 客户端（fetch，不用 SDK）
+│  ├─ extract.ts              L1 抽取：提纲 → 主张数组
+│  ├─ question.ts             L2-B 质询生成
+│  ├─ retrieval.ts            L2-A 检索意图翻译
+│  ├─ arxiv.ts                arXiv 检索（免费无 key）
+│  ├─ crossref.ts             Crossref 检索（免费无 key）
+│  ├─ websearch.ts            DeepSeek 搜索补中文库（可选）
+│  ├─ similarity.ts           相似度打分（纯代码）
+│  ├─ overlap.ts              多源结果合并与理由生成
+│  ├─ search.ts               检索总调度，一个库挂了不影响其他
+│  ├─ evidence.ts             纵轴：提纲自己有没有证据
+│  ├─ quadrant.ts             四象限判定
+│  ├─ manual.ts               手工粘贴中文文献的解析
+│  ├─ config.ts               站长开关
+│  └─ mock.ts                 早期假数据，现在没有任何地方引用它
+├─ scripts/                   自检脚本，每个模块一个，共 12 个
+├─ plan.md                    实施计划与逐步进度记录
+├─ plan.local.md              更详细的踩坑笔记（不进 git）
+└─ README.md                  本文件
 ```
 
 ## 当前进度
 
-见 [plan.md](./plan.md)。当前：第 1 步完成，项目骨架已就位。
+**六层链路已全部跑通，可以真用。**
+
+| 层 | 状态 |
+| --- | --- |
+| L1 抽取：提纲 → 主张数组 | 完成 |
+| L2-A 检索意图翻译：中文主张 → 英文检索词 | 完成 |
+| L2-B 质询生成：每条主张 → 1-2 个问题 + 及格线 | 完成 |
+| 检索：arXiv + Crossref（+ DeepSeek 搜索可选、手工文献可选） | 完成 |
+| L3 组装：四象限、主场、报告（纯代码，不调模型） | 完成 |
+| 界面：散点图、主张表、问题清单、打印成 PDF、深色模式 | 完成 |
+
+真模型实测（2026-10-20，一份 320 字的中职短视频教学提纲）：
+
+- 7 条主张、14 个质询问题、15 次模型调用
+- 24,778 token，**0.0355 元**，**30.6 秒**出结果
+- 七个点的横轴分数 43–73、纵轴 0–57，没有压在同一条线上
+
+剩下的事：`plan.md` 阶段六里没打勾的三项。
+
+逐步的进度记录（每一步为什么这么做、踩了什么坑）见 [plan.md](./plan.md) 末尾的「进度记录」。
 
 ## 许可证
 
