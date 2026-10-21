@@ -8,7 +8,7 @@ import QuestionList from "@/components/QuestionList";
 import HomeGround from "@/components/HomeGround";
 import OverallScore from "@/components/OverallScore";
 import ResetDialog from "@/components/ResetDialog";
-import { SITE } from "@/lib/config";
+import { PROJECT, SITE } from "@/lib/config";
 import { parseManualRefs } from "@/lib/manual";
 import { FILL_OUTLINE_EVENT } from "@/lib/samples";
 import { INSTANT_SAMPLES, LOAD_INSTANT_EVENT } from "@/lib/samples-instant";
@@ -971,6 +971,71 @@ export default function Home() {
         onCancel={closeReset}
         onConfirm={handleReset}
       />
+
+      {/*
+        页脚：开源署名 + 版权/许可证，两行，整块居中。
+
+        为什么初始页也要有，不是只在出报告后显示：
+        署名是「这东西是谁做的」的答案，跟有没有跑过没关系。
+        而且从 GitHub 点进来的人，第一屏就想确认这真是个开源项目。
+
+        为什么头像并进版权行，而不是自己占一行：
+        头像自己占一行时，页脚是「头像 + 名字 / 软肋是开源项目 / © …」三行，
+        中间那行「软肋是开源项目」被上下两个「人」夹着，
+        读起来像两个人名之间插了一句产品介绍。
+        并进版权行之后是两行：一行讲这产品是什么，一行讲出处和法律。
+        头像就落在「© 2026 ⬤ KarmaSprite」中间，像文件末尾的一枚小印章。
+
+        为什么用 <img> 而不是 next/image：
+        这是一张 160×160 的静态小图，已经压到 4.7KB。
+        next/image 会为它生成一套 srcset 和一层包装元素，
+        换来的收益是零，多出来的是构建产物里一堆哈希文件。
+        头像本来就不该是页面的性能瓶颈。
+
+        为什么两个链接都要 target="_blank"：
+        点「源码」是想去看代码，不是想离开当前报告。
+        没有 rel="noopener" 的话，新页面能通过 window.opener 改回这一页的地址。
+      */}
+      <footer className="site-foot">
+        <p className="site-foot-line">
+          <span className="site-foot-name">{PROJECT.name}</span>
+          是开源项目，源码在
+          <a
+            className="site-foot-link"
+            href={PROJECT.repoUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            GitHub
+          </a>
+        </p>
+        <p className="site-foot-line site-foot-legal">
+          © {PROJECT.year} {PROJECT.author}
+          {/*
+            alt 是空串，不是作者名。
+            因为紧挨着的左边就是「KarmaSprite」这四个字 ——
+            alt 再写一遍，读屏用户会听到「KarmaSprite KarmaSprite」。
+            装饰性图片给空 alt 是标准做法：它不携带文字没有的信息。
+          */}
+          <img
+            className="site-foot-avatar"
+            src="/avatar.jpg"
+            alt=""
+            width={20}
+            height={20}
+          />
+          · 内容按
+          <a
+            className="site-foot-link"
+            href={PROJECT.licenseUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            {PROJECT.licenseName}
+          </a>
+          授权
+        </p>
+      </footer>
     </main>
   );
 }

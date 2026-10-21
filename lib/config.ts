@@ -51,3 +51,25 @@ export const SITE: SiteConfig = {
   manualRefs: true,
   debugPassword: "",
 };
+
+/**
+ * 页脚署名要用到的几样东西。
+ *
+ * 为什么也放这里而不是写死在 JSX 里：
+ * 仓库地址会在页脚、README、LICENSE 三处出现。写死三遍，
+ * 将来改一处忘两处就是三个互相矛盾的地址。
+ * 这里写一遍，页脚从常量取；README 和 LICENSE 是给人看的文档，
+ * 只能各写一遍，但那两处改的时候能对着这个文件核。
+ *
+ * 为什么 license 名字和地址分开写：
+ * 名字要显示在页面上（「CC BY-NC-SA 4.0」），地址要当链接跳转。
+ * 拼成一个字符串，显示和跳转就得各自再拆一次。
+ */
+export const PROJECT = {
+  name: "软肋",
+  author: "KarmaSprite",
+  year: 2026,
+  repoUrl: "https://github.com/KarmaSprite/pre-defense",
+  licenseName: "CC BY-NC-SA 4.0",
+  licenseUrl: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+} as const;

@@ -580,10 +580,19 @@ textarea {
   line-height: 1.7;
 }
 
+/*
+   脚注不带自己的上边框。
+
+   为什么原来有、现在删了：这份脚注上面就是质询问题清单的最后一张卡片，
+   那张卡片自己已经有一条 border-bottom。脚注再加一条上边框，
+   两条线只隔着一个段间距，看起来像「这里断了一次又重新开始」。
+   页脚那边还有一条线，三条线叠在同一屏底部，页尾就花了。
+
+   现在整页底部只有一条线：页脚的那条。脚注退成一段纯灰字，
+   读者扫到就读，扫不到也不挡路。
+*/
 .report-footnote {
-  margin-top: var(--gap-xl);
-  padding-top: var(--gap-md);
-  border-top: 1px solid var(--line-soft);
+  margin-top: var(--gap-lg);
   color: var(--faint);
   font-size: var(--fs-xs);
 }
@@ -2298,9 +2307,17 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: var(--gap-md) var(--gap-lg);
-  margin-top: var(--gap-md);
-  padding-top: var(--gap-md);
-  border-top: 1px solid var(--line-soft);
+  /*
+     第 24f 步删掉了这里的 border-top 和 padding-top。
+
+     原来的样子：上面是 .overall 的下边框，18px 之后是 .report-meta 的上边框 ——
+     中间什么都没有的时候就是两条平行线干瞪眼，用户报的是「多一条横线」。
+     有「这份报告是存好的示例结果」那行时，它俩中间夹着字，看起来才像
+     「框住一段话」，所以这个毛病只在离线示例以外的情况下暴露。
+
+     改法：分隔线只留一条，交给 .overall 的下边框。两种情况下都是它。
+  */
+  margin-top: var(--gap-sm);
 }
 
 .report-meta > div {
@@ -3317,9 +3334,20 @@ textarea {
   */
   display: flex;
   flex-direction: column;
-  gap: var(--gap-xs);
-  margin-bottom: var(--gap-lg);
-  padding: var(--gap-sm) 0;
+  /*
+     第 24f 步：间距 6 → 4，上下内边距 10 → 6，下外边距 28 → 16。
+     用户的原话是「把诊断报告那个标题的上下留白弄少一点」。
+
+     量的位置：标题上方的空白 = 页头下边距（两栏态已收到 18）+ 这一条的 padding-top；
+     下方 = padding-bottom + 这个 gap + 摘要行 + margin-bottom。
+     改之前上下各 38 / 40px，改之后 24 / 34px。
+
+     只动内边距，不动 .block-title 的字号行高 ——
+     那是五个板块标题共用的，动它会把「软肋地图」「你的主场」一起改掉。
+  */
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 6px 0;
   /*
      背景必须是实色。
      透明的 sticky 条滚过去的时候，底下的报告文字会从它中间穿过去，
@@ -3327,6 +3355,21 @@ textarea {
   */
   background: var(--bg);
   border-bottom: 1px solid var(--line);
+}
+
+/*
+   两栏态下页头收紧。
+
+   为什么只收页头的下边距，不收 .shell 的 padding-top：
+   那 44px 是页头自己跟浏览器顶端之间的距离，收了会让「软肋」两个字
+   贴着窗口上沿，看起来像被裁掉了。
+   而页头和吸顶栏之间的 28px 是纯粹的间隔，两栏态下这块地方已经
+   被两条分隔线框住了，再留 28px 就是空转。
+*/
+@media screen and (min-width: 901px) {
+  .shell-wide .masthead {
+    margin-bottom: 18px;
+  }
 }
 
 /*
@@ -3711,6 +3754,9 @@ textarea {
   padding-top: 2px;
 }
 
+/*
+   第一层：一句理由。13px、正文色 —— 这是右半边唯一「必须读」的一行。
+*/
 .overall-reason {
   color: var(--ink-soft);
   font-size: var(--fs-sm);
@@ -3718,24 +3764,111 @@ textarea {
 }
 
 /*
-   公式比理由再轻一档。
-   它是"可以核对"的东西，不是"必须读"的东西 ——
-   想验算的人会看，不想看的人不该被它挡住。
+   第二层：怎么算的 / 刻度。
+
+   为什么要一条分隔线：
+   理由那一行说的是「你这份怎么样」，下面是「这个数是怎么来的」。
+   两件事性质不同，混在一起读起来就是「一堆字堆在一起没啥主次」。
+   线的颜色用 --line-soft 而不是 --line：它只是分组，不是板块边界，
+   用重了会跟 .overall 自己的上下边框抢戏。
+*/
+.overall-how {
+  display: grid;
+  /*
+     标签列固定 64px，值列吃剩下的。
+     固定而不是 auto：两行的标签字数不同（4 字 / 2 字），
+     auto 会让两行的值从不同位置起头，看起来像没对齐。
+  */
+  grid-template-columns: 64px 1fr;
+  gap: 6px var(--gap-sm);
+  margin-top: var(--gap-sm);
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--line-soft);
+}
+
+/*
+   标签：12px 弱色，行高跟右边的算式对齐。
+   padding-top 1px 是为了让标签的基线跟右边 12px 的文字坐在同一条线上 ——
+   两边字号一样，但右边第一行是算式（有括号和乘号），视觉重心略低。
+*/
+.overall-how-term {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  padding-top: 1px;
+}
+
+.overall-how-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/*
+   算式本身用 --ink-soft 而不是 --faint。
+   它虽然是「次要内容」，但它是这整块里唯一有实际信息量的一行 ——
+   弱到看不清就等于没写。小字降一档色，字重不加。
 */
 .overall-formula {
-  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+   说明句再轻一档。它交代的是规则（查不到的不算、其余插值），
+   读者知道有这么回事就够了，不需要逐字看。
+*/
+.overall-formula-note {
   color: var(--faint);
   font-size: var(--fs-xs);
   line-height: 1.6;
 }
 
 /*
-   刻度表跟公式排在一起，但要能一眼看出是「另一行」而不是公式的续句。
-   只加 2px 上边距 + 一条极浅的分隔，不加分隔线 —— 这块已经很密了。
+   刻度做成三个小片：40→58 / 55→70 / 70→84。
+
+   为什么不做成一句话「原始 40 → 58 · 55 → 70 · 70 → 84」：
+   那就是改之前的样子，用户说「一眼也看不懂」。
+   一句话里的间隔号分不清「哪两个数字是一对」，
+   做成小片之后每一对是一个整体，中间用间距断开，眼睛一次读一对。
+
+   小片不加边框不加底色：这一块已经很密，加框会变成三个按钮，
+   而它们不可点。
 */
 .overall-scale {
-  margin-top: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px var(--gap-sm);
+}
+
+.overall-scale-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.overall-scale-raw {
+  color: var(--muted);
+}
+
+.overall-scale-arrow {
+  color: var(--faint);
+}
+
+/*
+   换算后的数字加粗。用户最关心的是「原始 40 最后显示成几分」，
+   右边的数才是他要的答案。
+*/
+.overall-scale-shown {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 @media (max-width: 600px) {
@@ -3754,6 +3887,24 @@ textarea {
   .overall-value {
     font-size: var(--fs-lg);
     letter-spacing: -0.5px;
+  }
+
+  /*
+     窄屏下标签跑到值上面。
+     64px 的标签列在 390px 屏上要占掉六分之一，
+     算式那一列会被挤到只剩两百多像素，括号和乘号会折行。
+  */
+  .overall-how {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .overall-how-term {
+    padding-top: 0;
+  }
+
+  .overall-how-term + .overall-how-desc {
+    margin-bottom: 6px;
   }
 }
 
@@ -4153,5 +4304,161 @@ textarea {
 
   .outline-brief > summary::before {
     transition: none;
+  }
+}
+
+/* ---------- 22. 页脚署名 ---------- */
+
+/*
+   页脚：头像 + 开源署名 + 许可证，整块居中。
+
+   为什么它在 <main> 里而不是外面：
+   .shell 的宽度、左右内边距、底部留白都挂在 <main> 上。
+   挪到外面就得把这些再写一遍，两处宽度迟早会对不齐。
+   它在语义上是「这一页的脚注」，不是「站点级的导航」，
+   放 <main> 末尾没有错。
+
+   为什么居中：
+   上面整份报告都是左对齐的正文。页脚不是正文的一部分，
+   它是「这份文档到此为止」的收尾。左对齐的收尾读起来像还有下一段，
+   居中的收尾读起来像句号。这是版式上的老规矩，不是审美偏好。
+
+   为什么上边距 44px 而不是更大：
+   报告最后一块是「质询问题清单」，它自己已经有 28px 的段间距。
+   再叠一个 44px 就变成七十多像素的空白，看起来像内容断了。
+   44px 刚好够跟正文分开，又不至于空出一块。
+
+   为什么用一条短线而不是把整块做成一栏：
+   页脚不该跟报告内容抢注意力。一条短线 + 一行头像 + 两行 12px 小字，
+   读者扫到就知道「哦，这是开源项目」，不看也不碍事。
+   这条线是整页底部唯一的一条 —— 脚注那条上边框已经删掉了，
+   否则两条线挨在一起，页尾会显得被切了两刀。
+*/
+.site-foot {
+  margin-top: var(--gap-xl);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.8;
+  text-align: center;
+}
+
+/*
+   分隔用一条 40px 的居中短线，不用通栏边框。
+
+   为什么：上面整份报告是左对齐的正文，页脚是居中的落款。
+   通栏的那条线横跨 780px，而下面的内容只有中间窄窄三条，
+   线比内容宽出一个量级，看起来像一张表格的分隔行，
+   而不是「正文到此为止」。
+   短线的宽度刚好等于一行小字的长度，视线扫到就知道收尾了。
+
+   为什么用 ::before 而不是 border-top：
+   border 只能贴元素边界、必然是满宽；::before 才能控制宽度并居中。
+*/
+.site-foot::before {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 1px;
+  margin: 0 auto var(--gap-md);
+  background: var(--line);
+}
+
+/*
+    头像并进版权行，做成 20px 的行内小图，跟在名字后面。
+
+    为什么不再单独占一行：
+    头像自己一行时，页脚是「头像 + 名字 / 软肋是开源项目 / © …」三行，
+    中间那句产品介绍被上下两个「人」夹着，读起来像两个人名之间插了句话。
+    并进版权行之后只剩两行：一行讲产品，一行讲出处和法律。
+    头像跟在「KarmaSprite」后面，像落款后压的一枚印章。
+
+    为什么是 20px：版权行正文 12px、行高 1.8 约 22px。
+    20px 刚好跟这一行的字高对齐，不会把行撑开 —— 页脚行一多就散了。
+    再小到 16px 以下就认不出是张人脸了。
+
+    为什么 vertical-align 用 -0.35em 而不是 middle：
+    middle 是按父元素基线加半个 x-height 算的，跟中文字形的视觉中心对不上，
+    头像会明显偏高。0.35em 是量出来的：20px 的图下沉约 4px 正好压在字的中腰。
+
+    为什么 display 用 inline-block 而不是 block：
+    它要跟「© 2026」「KarmaSprite」「· 内容按」待在同一行，block 会强制换行。
+
+    为什么只有左外边距、右边留 0：
+    左边紧贴着名字，需要一点呼吸；右边本来就跟着一个空格再加「·」，
+    再补外边距会变成两倍宽，读起来像断开了。
+
+    为什么 1px 描边留着：
+    这张头像本身是深色的，深色模式下挨着深色背景会糊成一块污渍。
+*/
+.site-foot-avatar {
+  display: inline-block;
+  vertical-align: -0.35em;
+  width: 20px;
+  height: 20px;
+  margin: 0 0 0 5px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  object-fit: cover;
+}
+
+.site-foot-line {
+  display: block;
+}
+
+/*
+   第二行（版权和许可证）比第一行再轻一档。
+   第一行是「这是什么」，第二行是「法律声明」——
+   后者必须存在，但不需要抢视线。
+*/
+.site-foot-legal {
+  color: var(--faint);
+}
+
+.site-foot-name {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+/*
+   链接跟正文一个颜色，靠下划线区分，不靠蓝色。
+
+   为什么不用强调色：这个页面里强调色（--accent）只有一个含义 ——
+   「这是主操作」。页脚两个链接都是次要信息，
+   染成强调色会让读者以为那里有什么要他点。
+   下划线是链接最老实的记号，一眼认得出，也不增加视觉噪音。
+*/
+.site-foot-link {
+  margin: 0 3px;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 2px;
+}
+
+.site-foot-link:hover {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+}
+
+/*
+   打印时页脚保留。
+
+   这不是「顺便留着」—— CC BY-NC-SA 要求署名跟着作品走。
+   用户把报告存成 PDF 发给导师，那张 PDF 里必须还看得见出处，
+   否则就是一份没有署名的转载。
+
+   打印时头像不动（还是 20px）：
+   它已经跟版权行的字高对齐了，纸上再缩反而会糊成一团墨点。
+   屏幕上那个比例本来就跟纸上一致，没有要换算的东西。
+*/
+@media print {
+  .site-foot {
+    margin-top: 24px;
+  }
+
+  /* 纸上的分隔线再短一点：A4 宽度下 40px 的线太容易被当成误印的一个点 */
+  .site-foot::before {
+    width: 32px;
+    margin-bottom: 12px;
   }
 }

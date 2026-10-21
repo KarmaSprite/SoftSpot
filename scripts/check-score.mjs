@@ -17,7 +17,10 @@ import {
   claimScore,
   overallScore,
   rawClaimScore,
+  SCORE_FORMULA_MAIN,
+  SCORE_FORMULA_NOTE,
   SCORE_FORMULA_TEXT,
+  SCORE_SCALE_POINTS,
   SCORE_SCALE_TEXT,
 } from "../lib/score.ts";
 
@@ -352,6 +355,60 @@ console.log("\n[9] 公式文案要能对上代码");
       `刻度文案里的 ${raw} → ${shown} 跟代码一致`,
       calibrateScore(raw) === shown && SCORE_SCALE_TEXT.includes(String(raw)) && SCORE_SCALE_TEXT.includes(String(shown)),
       `calibrateScore(${raw}) = ${calibrateScore(raw)}`,
+    );
+  }
+}
+
+/* ---------------------------------------------------------------
+   [10] 拆开的三块要能拼回一整句（第 24f 步）
+   --------------------------------------------------------------- */
+
+console.log("\n[10] 拆开的公式和刻度要能拼回去");
+{
+  /*
+     第 24f 步把界面上那一整句拆成了「算式 + 说明」和「三个小片」。
+     拆开之后有一个新风险：改了一块忘了另一块。
+     这一组断言就是防这个 —— 拼出来的必须等于原来那一句。
+  */
+  check(
+    "算式 + 说明拼起来等于整句",
+    SCORE_FORMULA_TEXT === `${SCORE_FORMULA_MAIN}。${SCORE_FORMULA_NOTE}`,
+    SCORE_FORMULA_TEXT,
+  );
+
+  check(
+    "算式本身含 0.5 这个权重",
+    SCORE_FORMULA_MAIN.includes("0.5"),
+    SCORE_FORMULA_MAIN,
+  );
+
+  check(
+    "排除规则在说明句里，不在算式里",
+    SCORE_FORMULA_NOTE.includes("查不到") && !SCORE_FORMULA_MAIN.includes("查不到"),
+    SCORE_FORMULA_NOTE,
+  );
+
+  /*
+     三个小片上的数字必须跟 CALIBRATION 真的一样。
+     界面上现在是三个「40→58」这样的小片，用户照着验算，
+     对不上就是印了一份跟代码不符的说明。
+  */
+  check(
+    "刻度小片有三个锚点",
+    SCORE_SCALE_POINTS.length === 3,
+    `${SCORE_SCALE_POINTS.length} 个`,
+  );
+
+  for (const point of SCORE_SCALE_POINTS) {
+    check(
+      `刻度小片 ${point.raw} → ${point.shown} 跟代码一致`,
+      calibrateScore(point.raw) === point.shown,
+      `calibrateScore(${point.raw}) = ${calibrateScore(point.raw)}`,
+    );
+    check(
+      `刻度小片 ${point.raw} 也出现在一句话版本里`,
+      SCORE_SCALE_TEXT.includes(String(point.raw)) && SCORE_SCALE_TEXT.includes(String(point.shown)),
+      SCORE_SCALE_TEXT,
     );
   }
 }
