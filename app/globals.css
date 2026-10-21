@@ -1583,6 +1583,54 @@ textarea {
     background: var(--surface);
   }
 
+  /*
+    展开区那一行不是卡片。
+
+    上面那条「所有行都变卡片」的规则会连展开行一起命中。
+    展开行收起时内部高度是 0，但 14px 内边距、1px 边框和 10px 外边距
+    都还在 —— 于是每条主张下面挂出一个 30px 高的空白圆角框，
+    看起来像漏了一条数据。
+    实测（390px，8 条主张）：主卡片 210px，紧跟着一条 30px 的白框。
+
+    这里把外壳全退掉，让它只当一个容器。展开时的样式在下面那条 :has 里。
+  */
+  .claim-table tbody tr.claim-detail-row {
+    margin-bottom: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  /*
+    展开时，主卡片和明细连成一块 —— 卡片去掉下圆角，明细补出下半截。
+
+    为什么用 :has 而不是给 tr 加类：
+    展开状态记在里层 .claim-detail 上（那是唯一有动画的元素），
+    tr 上没有对应的类。要让 tr 知道「里面展开了」只有两条路：
+    要么在 ClaimTable 里多传一个类名（多一处状态要同步），
+    要么用 :has 让父元素看子元素。后者不用改组件，
+    而且这个项目里已经用过一次（.result-bar:has(.outline-brief[open])），
+    本机 Edge 155 实测支持。
+  */
+  .claim-table tbody tr.is-clickable.is-open {
+    margin-bottom: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    /* 展开的卡片和下面明细同色，拼起来才像一个整体 */
+    background: var(--surface);
+  }
+
+  .claim-table tbody tr.claim-detail-row:has(.claim-detail.is-open) {
+    margin-bottom: var(--gap-sm);
+    padding: 0 14px 14px;
+    border: 1px solid var(--line);
+    /* 上半截由主卡片封口，这里再画一条就多一道线 */
+    border-top: none;
+    border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+    background: var(--surface);
+  }
+
   .claim-table tbody td {
     padding: 0;
     border-bottom: none;
@@ -3252,6 +3300,25 @@ textarea {
 
   .result-bar-head {
     align-items: center;
+  }
+
+  /*
+    901px 以下退回单栏，报告区要重新当「一栏的开头」。
+
+    .report 默认带着 44px 上边距 + 44px 上内边距 + 一条上边框，
+    用意是单栏时跟上面的输入区分开。
+    两栏态（≥901px）那条规则把它清零了，但只在那个媒体查询里生效 ——
+    900px 以下走的是「退回单栏」，清零规则管不到这里，
+    于是 88px 空白和那条横线又回来了，而它上面明明是已经吸顶的结果栏，
+    没有任何东西需要断开。
+
+    实测（768px）：结果栏底边 251，报告内容顶边 344，中间空 93px 加一条线。
+    390px 更糟：那 88px 在手机屏上占掉五分之一屏高。
+  */
+  .workbench.is-split > .report {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
   }
 }
 
