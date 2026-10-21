@@ -224,7 +224,7 @@ pre-defense/
 │  ├─ manual.ts               手工粘贴中文文献的解析
 │  ├─ warnings.ts             同一个源出问题只报一条
 │  ├─ samples.ts              测试面板里的几条预设提纲
-│  ├─ samples-instant.ts      两条离线示例（真跑完冻结下来的响应）
+│  ├─ samples-instant.ts      三条离线示例（真跑完冻结下来的响应）
 │  ├─ theme.ts                深色/浅色偏好的读取与记忆
 │  ├─ config.ts               站长开关
 │  └─ mock.ts                 早期假数据，现在没有任何地方引用它
