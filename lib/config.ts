@@ -69,7 +69,7 @@ export const PROJECT = {
   name: "软肋",
   author: "KarmaSprite",
   year: 2026,
-  repoUrl: "https://github.com/KarmaSprite/pre-defense",
+  repoUrl: "https://github.com/KarmaSprite/SoftSpot",
   licenseName: "CC BY-NC-SA 4.0",
   licenseUrl: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
 } as const;

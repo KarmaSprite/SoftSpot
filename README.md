@@ -8,8 +8,8 @@
 [![Next.js](https://img.shields.io/badge/Next.js-15.5-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A518.18-5fa04e?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![Commits](https://img.shields.io/github/commit-activity/t/KarmaSprite/pre-defense?label=Commits&color=5aa9ff)](https://github.com/KarmaSprite/pre-defense/commits/main)
-[![Stars](https://img.shields.io/github/stars/KarmaSprite/pre-defense?label=Stars&color=f5c518)](https://github.com/KarmaSprite/pre-defense/stargazers)
+[![Commits](https://img.shields.io/github/commit-activity/t/KarmaSprite/SoftSpot?label=Commits&color=5aa9ff)](https://github.com/KarmaSprite/SoftSpot/commits/main)
+[![Stars](https://img.shields.io/github/stars/KarmaSprite/SoftSpot?label=Stars&color=f5c518)](https://github.com/KarmaSprite/SoftSpot/stargazers)
 
 > 在你还能改的时候，告诉你哪儿会被问倒。
 
@@ -83,8 +83,8 @@ L3 组装：纯代码，不调模型，算四象限、拼报告
 ### 第 1 分钟：拿到代码
 
 ```bash
-git clone https://github.com/KarmaSprite/pre-defense.git
-cd pre-defense
+git clone https://github.com/KarmaSprite/SoftSpot.git
+cd SoftSpot
 ```
 
 ### 第 2-4 分钟：装依赖
@@ -188,7 +188,7 @@ npm start
 ## 目录结构
 
 ```
-pre-defense/
+SoftSpot/
 ├─ app/
 │  ├─ layout.tsx              根布局
 │  ├─ page.tsx                首页：输入提纲、渲染报告
