@@ -727,66 +727,76 @@ export default function DebugPanel() {
                 </>
               )}
 
-              {/* ----- 测试数据 ----- */}
-              <div className="dbg-group">
-                <span className="dbg-group-title">测试数据</span>
+              {/*
+                测试数据和离线示例只在测试面板里出现。
+                进了调试面板（unlocked）就整块不渲染 —— 不是 display:none，
+                是连 DOM 都没有。留着节点的话 Ctrl+F 还能翻到「离线示例」这几个字，
+                等于没藏；而且它夹在「路由」和「开发」中间，会把调试用的东西劈开。
+              */}
+              {!unlocked && (
+                <>
+                  {/* ----- 测试数据 ----- */}
+                  <div className="dbg-group">
+                    <span className="dbg-group-title">测试数据</span>
 
-                {SAMPLE_OUTLINES.map((sample) => (
-                  <button
-                    key={sample.name}
-                    type="button"
-                    className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${qualityBand(sample.quality)}`}
-                    onClick={() => requestFillOutline(sample.text)}
-                    title={sample.note}
-                  >
-                    <span className="dbg-action-quality">{sample.quality}</span>
-                    <span>{sample.name}</span>
-                  </button>
-                ))}
+                    {SAMPLE_OUTLINES.map((sample) => (
+                      <button
+                        key={sample.name}
+                        type="button"
+                        className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${qualityBand(sample.quality)}`}
+                        onClick={() => requestFillOutline(sample.text)}
+                        title={sample.note}
+                      >
+                        <span className="dbg-action-quality">{sample.quality}</span>
+                        <span>{sample.name}</span>
+                      </button>
+                    ))}
 
-                <button
-                  type="button"
-                  className="dbg-action dbg-action-sample"
-                  onClick={() => requestFillOutline(randomOutline())}
-                >
-                  随机凑一段
-                </button>
+                    <button
+                      type="button"
+                      className="dbg-action dbg-action-sample"
+                      onClick={() => requestFillOutline(randomOutline())}
+                    >
+                      随机凑一段
+                    </button>
 
-                <p className="dbg-note">
-                  左边那个数是这份提纲的总体评分，跟报告顶部那个数<b>同一个公式</b>算的：
-                  每条主张（100 − 别人做过）× 0.5 + 答得上来 × 0.5 算出原始分，
-                  再按一条固定刻度换算成显示分，最后取平均。
-                  五条都用真模型跑过，76 / 67 / 60 / 48 / 23，从能过到过不了。
-                  点一下只填进输入框，不会自动开始诊断 —— 连点「随机凑一段」
-                  每次都不一样，用来验证「文字通顺但没证据」的提纲不会被夸成好选题。
-                </p>
-              </div>
+                    <p className="dbg-note">
+                      左边那个数是这份提纲的总体评分，跟报告顶部那个数<b>同一个公式</b>算的：
+                      每条主张（100 − 别人做过）× 0.5 + 答得上来 × 0.5 算出原始分，
+                      再按一条固定刻度换算成显示分，最后取平均。
+                      五条都用真模型跑过，76 / 67 / 60 / 48 / 23，从能过到过不了。
+                      点一下只填进输入框，不会自动开始诊断 —— 连点「随机凑一段」
+                      每次都不一样，用来验证「文字通顺但没证据」的提纲不会被夸成好选题。
+                    </p>
+                  </div>
 
-              {/* ----- 离线示例 ----- */}
-              <div className="dbg-group">
-                <span className="dbg-group-title">离线示例</span>
+                  {/* ----- 离线示例 ----- */}
+                  <div className="dbg-group">
+                    <span className="dbg-group-title">离线示例</span>
 
-                {INSTANT_SAMPLES.map((sample, index) => (
-                  <button
-                    key={sample.name}
-                    type="button"
-                    className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${qualityBand(sample.quality)} dbg-action-instant`}
-                    onClick={() => requestInstantResult(index)}
-                    title={sample.note}
-                  >
-                    <span className="dbg-action-quality">{sample.quality}</span>
-                    <span>{sample.name}</span>
-                  </button>
-                ))}
+                    {INSTANT_SAMPLES.map((sample, index) => (
+                      <button
+                        key={sample.name}
+                        type="button"
+                        className={`dbg-action dbg-action-sample dbg-action-scored dbg-action-q${qualityBand(sample.quality)} dbg-action-instant`}
+                        onClick={() => requestInstantResult(index)}
+                        title={sample.note}
+                      >
+                        <span className="dbg-action-quality">{sample.quality}</span>
+                        <span>{sample.name}</span>
+                      </button>
+                    ))}
 
-                <p className="dbg-note">
-                  上面这三条是真跑过一遍、把结果存下来的 —— 点一下直接出报告，
-                  不联网、不花钱、不用等 30 秒。数据是 2026-10-21 用 deepseek-chat
-                  跑出来的原样，耗时和花费照实显示，别把它当成刚算的。
-                  第一条落在最高档「新颖而且扎实」，第二条能跑出「你的主场」，
-                  第三条满屏红点，三条连起来正好是从高分到不及格。
-                </p>
-              </div>
+                    <p className="dbg-note">
+                      上面这三条是真跑过一遍、把结果存下来的 —— 点一下直接出报告，
+                      不联网、不花钱、不用等 30 秒。数据是 2026-10-21 用 deepseek-chat
+                      跑出来的原样，耗时和花费照实显示，别把它当成刚算的。
+                      第一条落在最高档「新颖而且扎实」，第二条能跑出「你的主场」，
+                      第三条满屏红点，三条连起来正好是从高分到不及格。
+                    </p>
+                  </div>
+                </>
+              )}
 
               {unlocked ? (
                 <>
